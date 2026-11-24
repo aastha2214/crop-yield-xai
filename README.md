@@ -46,7 +46,7 @@ brew install libomp
 python -m src.scenarios      # scan all climate-scenario combinations (defaults of the Climate Scenarios tab)
 python -m src.train          # global models: comparison, tuning, saves models/best_model.joblib (~6 min)
 python -m src.india          # India models: saves models/india_model.joblib (~5 min)
-python -m pytest -q          # 29 tests: expert system, scenarios/recommender, translations, end-to-end app (English + Hindi)
+python -m pytest -q          # 32 tests: expert system, scenarios/recommender, translations, SHAP additivity, end-to-end app (English + Hindi)
 streamlit run app.py         # interactive demo
 # execute notebooks (outputs are saved in the .ipynb files)
 cd notebooks && jupyter nbconvert --to notebook --execute --inplace 01_eda.ipynb 02_modeling.ipynb 03_xai.ipynb 04_india.ipynb
