@@ -19,9 +19,12 @@
         "model__min_samples_leaf": 1,
         "model__n_estimators": 149
       },
-      "DecisionTree": {
-        "model__max_depth": 24,
-        "model__min_samples_leaf": 1
+      "XGBoost": {
+        "model__colsample_bytree": 0.8736600550686904,
+        "model__learning_rate": 0.0862496209572722,
+        "model__max_depth": 10,
+        "model__n_estimators": 609,
+        "model__subsample": 0.9861021229056552
       }
     },
     "time": {

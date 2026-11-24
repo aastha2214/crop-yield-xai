@@ -67,6 +67,7 @@ def plot_comparison(df: pd.DataFrame, path, title="Model comparison (test R²)")
     ax = piv.plot.bar(figsize=(11, 5), rot=30)
     ax.set(ylabel="Test R²", title=title)
     ax.set_ylim(min(0, piv.min().min()) - 0.02, 1)
+    ax.legend(title="split", loc="upper left", bbox_to_anchor=(1.01, 1))   # keep legend off the bars
     plt.tight_layout()
     plt.savefig(path, dpi=130)
     plt.close()

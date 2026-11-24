@@ -60,6 +60,9 @@ def clean(verbose: bool = True) -> pd.DataFrame:
     info["outliers_removed"] = n_out
     info["rows_final"] = len(df)
     df = df.reset_index(drop=True)
+    # Per-hectare intensities: totals mostly reflect farm size, intensity reflects practice.
+    df[C.I_FERT_HA] = df[C.I_FERT] / df[C.I_AREA]
+    df[C.I_PEST_HA] = df[C.I_PEST] / df[C.I_AREA]
     if verbose:
         print(json.dumps(info, indent=1))
     clean.info = info
@@ -82,9 +85,10 @@ def main():
     res_all, fits = [], {}
     for split, (tr, te) in splits.items():
         res, fitted, params = train.run_comparison(tr, te, C.I_CAT, C.I_NUM, C.I_TARGET,
-                                                   C.I_YEAR, split, log_choice, only=types)
+                                                   C.I_YEAR, split, log_choice, only=types, tune_models=types)
         res_all.append(res); fits[split] = fitted
     comp = pd.concat(res_all, ignore_index=True)
+    comp = comp.round(3)
     comp.to_csv(C.INDIA_COMPARISON_CSV, index=False)
     t = comp[comp.split == "time"]
     best_name = t.loc[t.cv_R2_mean.idxmax(), "model"]
@@ -98,7 +102,7 @@ def main():
             "states": sorted(df[C.I_STATE].unique()), "crops": sorted(df[C.I_CROP].unique()),
             "seasons": sorted(df[C.I_SEASON].unique()),
             "medians": df[C.I_NUM].median().to_dict(),
-            "quantiles": {c: df[c].quantile([0.33, 0.67]).tolist() for c in [C.I_RAIN, C.I_FERT, C.I_PEST]},
+            "quantiles": {c: df[c].quantile([0.33, 0.67]).tolist() for c in [C.I_RAIN, C.I_FERT_HA, C.I_PEST_HA]},
             "year_range": [int(df[C.I_YEAR].min()), int(df[C.I_YEAR].max())],
             "cleaning": clean.info}
     joblib.dump(meta, C.INDIA_META_PATH)

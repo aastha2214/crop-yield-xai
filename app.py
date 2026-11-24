@@ -35,11 +35,9 @@ def load_india():
     df = india.clean(verbose=False)
     q = {c: tuple(v) for c, v in meta["quantiles"].items()}
     ex = Explainer(model, C.I_CAT, C.I_NUM, C.I_LABELS, C.I_UNITS, q, df.sample(500, random_state=C.RANDOM_STATE))
-    per_ha = {  # fertilizer/pesticide are totals; rules judge intensity per hectare
-        "fertilizer": tuple((df[C.I_FERT] / df[C.I_AREA]).quantile([0.33, 0.67])),
-        "pesticides": tuple((df[C.I_PEST] / df[C.I_AREA]).quantile([0.33, 0.67])),
-        "rainfall": tuple(df[C.I_RAIN].quantile([0.33, 0.67]))}
-    return ex, df, meta, per_ha
+    # rule thresholds (fertilizer / pesticide are per-hectare intensities)
+    rule_q = {"rainfall": q[C.I_RAIN], "fertilizer": q[C.I_FERT_HA], "pesticides": q[C.I_PEST_HA]}
+    return ex, df, meta, rule_q
 
 
 @st.cache_data
@@ -73,6 +71,7 @@ def show_explanation(ex: Explainer, row: pd.DataFrame, unit: str, title: str):
     fig = ex.waterfall(row, title=title)
     st.pyplot(fig, clear_figure=True)
     plt.close("all")
+    st.caption("The starting value E[f(X)] is the average prediction across all crops, so a crop with naturally lower yield per hectare shows a negative contribution.")
     st.info(ex.sentence(row, unit=unit))
     st.caption("SHAP shows what the model associates with the prediction, not proven causes.")
 
@@ -92,10 +91,21 @@ with tab1:
     if year > gmeta["year_range"][1]:
         st.warning("Years beyond the training data extrapolate: tree models hold the last-seen trend flat.")
     m = gmeta["medians"]
+    gq = gmeta["quantiles"]
+    for k, v in {"g_rain": float(m[C.G_RAIN]), "g_temp": float(m[C.G_TEMP]), "g_pest": float(m[C.G_PEST])}.items():
+        st.session_state.setdefault(k, v)          # defaults = dataset medians
+
+    def set_global_drought():
+        """Button callback: fill inputs with a low-rainfall / high-temperature scenario."""
+        st.session_state["g_rain"] = round(gq[C.G_RAIN][0] * 0.5, -1)   # half of the 'low' cut-off
+        st.session_state["g_temp"] = round(gq[C.G_TEMP][1] + 3, 1)      # 3 °C above the 'high' cut-off
+
     c4, c5, c6 = st.columns(3)
-    rain = c4.number_input("Rainfall (mm/year)", 0.0, 4000.0, float(m[C.G_RAIN]), step=50.0)
-    temp = c5.number_input("Avg temperature (°C)", -5.0, 40.0, float(m[C.G_TEMP]), step=0.5)
-    pest = c6.number_input("Pesticides (tonnes)", 0.0, 400000.0, float(m[C.G_PEST]), step=100.0)
+    rain = c4.number_input("Rainfall (mm/year)", 0.0, 4000.0, step=50.0, key="g_rain")
+    temp = c5.number_input("Avg temperature (°C)", -5.0, 40.0, step=0.5, key="g_temp")
+    pest = c6.number_input("Pesticides (tonnes)", 0.0, 400000.0, step=100.0, key="g_pest")
+    st.button("Try example: drought scenario", key="g_drought", on_click=set_global_drought,
+              help="Sets low rainfall and high temperature so the expert-system rules fire.")
 
     row = pd.DataFrame([{C.G_COUNTRY: country, C.G_CROP: crop, C.G_YEAR: year,
                          C.G_RAIN: rain, C.G_TEMP: temp, C.G_PEST: pest}])[C.G_FEATURES]
@@ -118,7 +128,7 @@ with tab1:
 
 # =================================================================== TAB 2
 with tab2:
-    iex, idf, imeta, per_ha = load_india()
+    iex, idf, imeta, rule_q = load_india()
     st.header("India insights")
     figs = [("india_top_states.png", "Top states by production"), ("india_yield_trends.png", "Yield trends, major crops"),
             ("india_state_crop_heatmap.png", "State × crop yield"), ("india_vs_world.png", "India vs world average")]
@@ -128,23 +138,39 @@ with tab2:
             cols[i % 2].image(str(C.FIG_DIR / f), caption=cap)
     st.divider()
     st.subheader("Predict yield for an Indian state")
+    # defaults live in session_state (not `index=`) because the drought button also sets them
+    for k, v in {"i_state": "Punjab", "i_crop": "Rice", "i_season": "Kharif"}.items():
+        st.session_state.setdefault(k, v)
     d1, d2, d3, d4 = st.columns(4)
-    state = d1.selectbox("State", imeta["states"], index=imeta["states"].index("Punjab"))
-    icrop = d2.selectbox("Crop", imeta["crops"], index=imeta["crops"].index("Rice"))
-    season = d3.selectbox("Season", imeta["seasons"], index=imeta["seasons"].index("Kharif"))
+    state = d1.selectbox("State", imeta["states"], key="i_state")
+    icrop = d2.selectbox("Crop", imeta["crops"], key="i_crop")
+    season = d3.selectbox("Season", imeta["seasons"], key="i_season")
     iyear = d4.slider("Year", imeta["year_range"][0], 2030, 2019)
     sub = idf[(idf[C.I_CROP] == icrop) & (idf[C.I_STATE] == state)]
     ref = sub if len(sub) else idf[idf[C.I_CROP] == icrop]
+    rain_key = f"i_rain_{state}_{icrop}"            # new default whenever state/crop changes
+    st.session_state.setdefault(rain_key, float(ref[C.I_RAIN].median()))
+    st.session_state.setdefault("i_outlook", "normal")
+
+    def set_india_drought():
+        """Button callback: Kharif season, low rainfall, high temperature outlook."""
+        s_, c_ = st.session_state["i_state"], st.session_state["i_crop"]
+        st.session_state["i_season"] = "Kharif"
+        st.session_state[f"i_rain_{s_}_{c_}"] = round(rule_q["rainfall"][0] * 0.6, -1)
+        st.session_state["i_outlook"] = "high"
+
     e1, e2, e3, e4 = st.columns(4)
     area = e1.number_input("Area (ha)", 1.0, 5e7, float(ref[C.I_AREA].median()), step=1000.0)
-    irain = e2.number_input("Annual rainfall (mm)", 0.0, 7000.0, float(ref[C.I_RAIN].median()), step=50.0)
-    fert = e3.number_input("Fertilizer (kg, total)", 0.0, 5e9, float(ref[C.I_FERT].median()), step=1e5, format="%.0f")
-    ipest = e4.number_input("Pesticide (kg, total)", 0.0, 2e7, float(ref[C.I_PEST].median()), step=1e3, format="%.0f")
+    irain = e2.number_input("Annual rainfall (mm)", 0.0, 7000.0, step=50.0, key=rain_key)
+    fert = e3.number_input("Fertilizer (kg/ha)", 0.0, 5000.0, float(ref[C.I_FERT_HA].median()), step=5.0, format="%.2f")
+    ipest = e4.number_input("Pesticide (kg/ha)", 0.0, 100.0, float(ref[C.I_PEST_HA].median()), step=0.05, format="%.3f")
     outlook = st.select_slider("Temperature outlook (advisory only - the India model has no temperature input)",
-                               ["low", "normal", "high"], value="normal")
+                               ["low", "normal", "high"], key="i_outlook")
+    st.button("Try example: drought scenario", key="i_drought", on_click=set_india_drought,
+              help="Sets Kharif season, low rainfall and a high temperature outlook so the expert-system rules fire.")
 
     irow = pd.DataFrame([{C.I_CROP: icrop, C.I_SEASON: season, C.I_STATE: state, C.I_YEAR: iyear,
-                          C.I_AREA: area, C.I_RAIN: irain, C.I_FERT: fert, C.I_PEST: ipest}])[C.I_FEATURES]
+                          C.I_AREA: area, C.I_RAIN: irain, C.I_FERT_HA: fert, C.I_PEST_HA: ipest}])[C.I_FEATURES]
     ipred = float(iex.fitted.predict(irow)[0])
     iavg = ref[C.I_TARGET].mean()
     m1, m2 = st.columns(2)
@@ -152,7 +178,7 @@ with tab2:
     m2.metric(f"Historical average ({'state · crop' if len(sub) else 'crop, all states'})", f"{iavg:.2f} t/ha",
               f"{(ipred / iavg - 1) * 100:+.1f}%")
     show_explanation(iex, irow, "t/ha", f"{icrop}, {state}, {season}, {iyear}")
-    ifacts = advisor.build_facts(per_ha, rainfall=irain, pesticides=ipest / area, fertilizer=fert / area,
+    ifacts = advisor.build_facts(rule_q, rainfall=irain, pesticides=ipest, fertilizer=fert,
                                  predicted=ipred, crop_avg=iavg, crop=icrop, season=season)
     ifacts["temp"] = outlook
     show_advice(ifacts)
@@ -160,13 +186,14 @@ with tab2:
 # =================================================================== TAB 3
 with tab3:
     gcomp, icomp = load_results()
-    cols = ["model", "split", "cv_R2_mean", "test_R2", "test_MAE", "test_RMSE", "train_time_s"]
+    cols = ["model", "cv_R2_mean", "test_R2", "test_MAE", "test_RMSE", "train_time_s"]
+    fmt = {c: "{:.3f}" for c in cols[1:]}          # every number in these tables: 3 decimals
     st.header("Model evaluation")
     for title, comp, unit in [("Global dataset (yield in hg/ha)", gcomp, "hg/ha"), ("India dataset (yield in t/ha)", icomp, "t/ha")]:
         st.subheader(title)
         a, b = st.columns(2)
-        a.markdown("**Random 80/20 split**"); a.dataframe(comp[comp.split == "random"][cols].round(3), hide_index=True)
-        b.markdown("**Time-based split (latest 4 years held out)**"); b.dataframe(comp[comp.split == "time"][cols].round(3), hide_index=True)
+        a.markdown("**Random 80/20 split**"); a.dataframe(comp[comp.split == "random"][cols].style.format(fmt), hide_index=True)
+        b.markdown("**Time-based split (latest 4 years held out)**"); b.dataframe(comp[comp.split == "time"][cols].style.format(fmt), hide_index=True)
     st.subheader("Why does the time-based split score lower?")
     st.write("In a random split, the same country/state-crop series appears on both sides: for most test rows the model "
              "has already seen the previous and next year of that series, so it can nearly look the answer up (leakage). "

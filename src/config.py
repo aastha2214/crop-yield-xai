@@ -6,6 +6,8 @@ name, so the same code can be pointed at a renamed dataset in one place.
 from pathlib import Path
 
 RANDOM_STATE = 42
+# Model families tuned with RandomizedSearchCV on BOTH splits (same models => comparable bars)
+TUNE_MODELS = ["RandomForest", "XGBoost"]
 
 # ---------------------------------------------------------------- paths
 ROOT = Path(__file__).resolve().parent.parent
@@ -51,8 +53,12 @@ I_RAIN = "Annual_Rainfall"
 I_FERT = "Fertilizer"
 I_PEST = "Pesticide"
 I_TARGET = "Yield"
+# Fertilizer / Pesticide in the CSV are TOTALS for the whole cultivated area, so they mostly
+# measure farm size. We convert them to intensity per hectare (total / Area) and use those.
+I_FERT_HA = "Fertilizer_per_ha"
+I_PEST_HA = "Pesticide_per_ha"
 I_CAT = [I_CROP, I_SEASON, I_STATE]
-I_NUM = [I_YEAR, I_AREA, I_RAIN, I_FERT, I_PEST]
+I_NUM = [I_YEAR, I_AREA, I_RAIN, I_FERT_HA, I_PEST_HA]
 I_FEATURES = I_CAT + I_NUM       # NOTE: Production deliberately excluded (target leak)
 I_TEST_YEARS = 4
 # Coconut is recorded in NUMBER OF NUTS per hectare (yields in the thousands), not tonnes,
@@ -66,6 +72,6 @@ G_LABELS = {G_COUNTRY: "Country", G_CROP: "Crop", G_YEAR: "Year",
             G_RAIN: "Rainfall", G_TEMP: "Temperature", G_PEST: "Pesticide use"}
 G_UNITS = {G_RAIN: "mm/yr", G_TEMP: "°C", G_PEST: "t", G_YEAR: ""}
 I_LABELS = {I_CROP: "Crop", I_SEASON: "Season", I_STATE: "State", I_YEAR: "Year",
-            I_AREA: "Cultivated area", I_RAIN: "Rainfall", I_FERT: "Fertilizer use",
-            I_PEST: "Pesticide use"}
-I_UNITS = {I_RAIN: "mm/yr", I_AREA: "ha", I_FERT: "kg", I_PEST: "kg", I_YEAR: ""}
+            I_AREA: "Cultivated area", I_RAIN: "Rainfall", I_FERT_HA: "Fertilizer use",
+            I_PEST_HA: "Pesticide use"}
+I_UNITS = {I_RAIN: "mm/yr", I_AREA: "ha", I_FERT_HA: "kg/ha", I_PEST_HA: "kg/ha", I_YEAR: ""}

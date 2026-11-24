@@ -109,7 +109,7 @@ def tune(name, base_pipe, Xtr, ytr, folds, n_iter=20):
     return rs.best_estimator_, rs.best_params_
 
 
-def run_comparison(train, test, cat, num, target, year_col, split, log_choice, n_iter=20, only=None):
+def run_comparison(train, test, cat, num, target, year_col, split, log_choice, n_iter=20, only=None, tune_models=None):
     """Evaluate all models (+ tuned top-2) for one split.
 
     Returns (results DataFrame, dict of fitted pipelines, tuned-params dict).
@@ -127,8 +127,9 @@ def run_comparison(train, test, cat, num, target, year_col, split, log_choice, n
         fitted[name] = fit
         print(f"  [{split}] {name:16s} cvR2={row['cv_R2_mean']:.3f} testR2={row['test_R2']:.3f}")
     res = pd.DataFrame(rows)
-    # top-2 by CV R² (no peeking at the test set), excluding the baseline
-    top2 = res[res.model != "LinearRegression"].nlargest(2, "cv_R2_mean").model.tolist()
+    # The SAME model families are tuned on both splits so every model has both bars in the
+    # comparison. Default (None) falls back to the top-2 by CV R² (never by test score).
+    top2 = tune_models or res[res.model != "LinearRegression"].nlargest(2, "cv_R2_mean").model.tolist()
     tuned_params = {}
     for name in top2:
         base = features.build_pipeline(models[name], cat, num, log_choice[name])
@@ -176,9 +177,11 @@ def main():
     all_res, all_fit, all_params = [], {}, {}
     for split, (tr, te) in splits.items():
         res, fitted, params = run_comparison(tr, te, C.G_CAT, C.G_NUM, C.G_TARGET,
-                                             C.G_YEAR, split, log_choice)
+                                             C.G_YEAR, split, log_choice,
+                                             tune_models=C.TUNE_MODELS)
         all_res.append(res); all_fit[split] = fitted; all_params[split] = params
     comp = pd.concat(all_res, ignore_index=True)
+    comp = comp.round(3)                      # all reported numbers use 3 decimals
     comp.to_csv(C.GLOBAL_COMPARISON_CSV, index=False)
     evaluate.plot_comparison(comp, C.FIG_DIR / "model_comparison.png")
 
@@ -200,8 +203,7 @@ def main():
             "year_range": [int(df.Year.min()), int(df.Year.max())]}
     joblib.dump(meta, C.GLOBAL_META_PATH)
     # top-2 model *types* (used again for India)
-    base_names = [n.replace(" (tuned)", "") for n in t[t.tuned == False].nlargest(3, "cv_R2_mean").model]
-    top2 = [n for n in base_names if n != "LinearRegression"][:2]
+    top2 = list(C.TUNE_MODELS)
     (C.RESULTS_DIR / "top_models.json").write_text(json.dumps(
         {"best_global": best_name, "top2_types": top2, "log_choice": log_choice,
          "tuned_params": all_params}, indent=2, default=str))

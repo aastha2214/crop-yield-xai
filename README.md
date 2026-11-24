@@ -73,40 +73,70 @@ outputs/figures|results   all plots and CSV tables
 REPORT.md             draft academic report
 ```
 
-## Results summary (all numbers produced by the code)
+## Results summary (all numbers produced by the code, 3 decimals)
 
-**Global (hg/ha).** Time-based split = train 1990-2009, test 2010-2013.
+**Global (hg/ha).** Time-based split = train 1990-2009, test 2010-2013. Random Forest and XGBoost are tuned on both splits.
 
-| Model | Random R² | Random RMSE | Time R² | Time RMSE |
-|---|---|---|---|---|
-| Linear Regression | 0.776 | 40,250 | 0.709 | 51,350 |
-| Decision Tree | 0.976 | 13,120 | 0.936 | 24,045 |
-| Random Forest | **0.984** | **10,672** | 0.955 | 20,306 |
-| XGBoost | 0.974 | 13,756 | 0.951 | 21,170 |
-| MLP (neural net) | 0.961 | 16,822 | 0.934 | 24,544 |
-| **XGBoost (tuned)** | – | – | **0.957** | **19,671** |
+*Random 80/20 split*
 
-Best global model (chosen on time-split CV R²): **tuned XGBoost** – time split R² 0.957, MAE 10,371 hg/ha (≈1.04 t/ha).
+| Model                |   CV R² |   Test R² |       MAE |      RMSE |   Train time (s) |
+|:---------------------|--------:|----------:|----------:|----------:|-----------------:|
+| LinearRegression     |   0.770 |     0.776 | 22682.090 | 40250.010 |            0.045 |
+| DecisionTree         |   0.976 |     0.976 |  4199.062 | 13120.316 |            0.082 |
+| RandomForest         |   0.985 |     0.984 |  4013.476 | 10672.207 |            1.446 |
+| XGBoost              |   0.974 |     0.974 |  7836.832 | 13755.629 |            0.617 |
+| MLP                  |   0.954 |     0.961 |  8671.715 | 16822.028 |            8.603 |
+| RandomForest (tuned) |   0.984 |     0.983 |  4657.917 | 11202.755 |            0.996 |
+| XGBoost (tuned)      |   0.986 |     0.986 |  4414.397 | 10236.611 |            1.547 |
+
+*Time-based split*
+
+| Model                |   CV R² |   Test R² |       MAE |      RMSE |   Train time (s) |
+|:---------------------|--------:|----------:|----------:|----------:|-----------------:|
+| LinearRegression     |   0.767 |     0.709 | 28689.371 | 51349.722 |            0.038 |
+| DecisionTree         |   0.935 |     0.936 | 11518.027 | 24044.682 |            0.082 |
+| RandomForest         |   0.957 |     0.955 | 10409.940 | 20306.313 |            1.411 |
+| XGBoost              |   0.955 |     0.951 | 12286.857 | 21170.246 |            0.602 |
+| MLP                  |   0.903 |     0.934 | 14157.890 | 24544.244 |            8.766 |
+| RandomForest (tuned) |   0.955 |     0.953 | 10838.375 | 20743.712 |            1.007 |
+| XGBoost (tuned)      |   0.960 |     0.957 | 10370.513 | 19671.442 |            1.629 |
+
+Best global model (chosen on time-split CV R²): **tuned XGBoost** – time-split R² 0.957, MAE 10370.513 hg/ha (≈1.04 t/ha), RMSE 19671.442.
 **Key finding:** every model scores higher on the random split because 71 % of random test rows have the same country-crop series in training in *both* the previous and next year (0 % in the time split); a trivial "mean of this country-crop pair" lookup already scores R² 0.94 on the random split. The time-based split is the honest estimate.
 
-**India (t/ha).** Train 1997-2016, test 2017-2020; Coconut (measured in nuts) excluded.
+**India (t/ha).** Train 1997-2016, test 2017-2020; Coconut (measured in nuts) excluded; Fertilizer and Pesticide used **per hectare**.
 
-| Model | Random R² | Random RMSE | Time R² | Time RMSE |
-|---|---|---|---|---|
-| Random Forest | 0.967 | 2.13 | 0.917 | 3.65 |
-| XGBoost | 0.971 | 1.98 | 0.902 | 3.98 |
-| **XGBoost (tuned)** | 0.971 | 1.99 | **0.927** | **3.44** |
+*Random split*
 
-Best India model: **tuned XGBoost** (time-split R² 0.927, MAE 1.08 t/ha).
+| Model                |   CV R² |   Test R² |   MAE |   RMSE |   Train time (s) |
+|:---------------------|--------:|----------:|------:|-------:|-----------------:|
+| RandomForest         |   0.955 |     0.970 | 0.594 |  2.026 |            2.349 |
+| XGBoost              |   0.954 |     0.969 | 0.720 |  2.060 |            0.572 |
+| RandomForest (tuned) |   0.954 |     0.969 | 0.756 |  2.057 |            1.034 |
+| XGBoost (tuned)      |   0.956 |     0.970 | 0.656 |  2.031 |            1.561 |
 
-**Explainability.** Global SHAP share of total importance: Crop 58.7 %, Year 9.7 %, Country 9.7 %, Pesticide 9.0 %, Temperature 8.1 %, Rainfall 4.8 % (the model's built-in importance would wrongly credit Country with 77 %).
+*Time-based split*
+
+| Model                |   CV R² |   Test R² |   MAE |   RMSE |   Train time (s) |
+|:---------------------|--------:|----------:|------:|-------:|-----------------:|
+| RandomForest         |   0.929 |     0.913 | 0.899 |  3.737 |            2.313 |
+| XGBoost              |   0.933 |     0.903 | 1.010 |  3.957 |            0.569 |
+| RandomForest (tuned) |   0.928 |     0.910 | 1.053 |  3.799 |            1.087 |
+| XGBoost (tuned)      |   0.936 |     0.920 | 1.090 |  3.596 |            0.618 |
+
+Best India model: **tuned XGBoost** (time-split R² 0.920, MAE 1.090 t/ha, RMSE 3.596).
+
+**Explainability.** Global SHAP share of total importance: Crop 58.7 %, Year 9.7 %, Country 9.7 %, Pesticide 9.0 %, Temperature 8.1 %, Rainfall 4.8 % (the model's built-in importance would wrongly credit Country with 77 %). India: Crop 64.0 %, State 12.9 %, Area 9.9 %, Year 4.7 %, Season 4.0 %, Rainfall 3.0 %, Fertilizer/ha 0.8 %, Pesticide/ha 0.6 %.
+
+**App.** Each prediction tab has a "Try example: drought scenario" button (low rainfall, high temperature) so the expert-system rules fire; each SHAP waterfall has a note explaining that the starting value E[f(X)] is the average across all crops.
 
 ### Key plots
 | | |
 |---|---|
 | ![](outputs/figures/model_comparison.png) | ![](outputs/figures/shap_beeswarm.png) |
 | ![](outputs/figures/shap_waterfall_low.png) | ![](outputs/figures/india_shap_waterfall_rice_punjab.png) |
-| ![](outputs/figures/app_tab2_india.png) | ![](outputs/figures/india_vs_world.png) |
+| ![](outputs/figures/app_tab1_drought_scenario.png) | ![](outputs/figures/app_tab2_india_drought.png) |
+| ![](outputs/figures/app_tab3_evaluation.png) | ![](outputs/figures/india_vs_world.png) |
 
 ## Notes and honest limitations
 * Models learn **associations**, not causes; SHAP explains the model, not the farm.
