@@ -209,10 +209,13 @@ with tab1:
     hist = gdf[(gdf[C.G_COUNTRY] == country) & (gdf[C.G_CROP] == crop)][C.G_TARGET]
     hist_avg = hist.mean() if len(hist) else gdf[gdf[C.G_CROP] == crop][C.G_TARGET].mean()
     basis = f"{country} · {crop}" if len(hist) else tr("basis_no_history", crop=crop, country=country)
-    k1, k2, k3 = st.columns(3)
-    k1.metric(tr("pred_yield"), f"{pred:,.0f} hg/ha")
-    k2.metric(tr("tonnes_per_ha"), f"{pred * C.HG_PER_HA_TO_T_PER_HA:.2f} t/ha")
-    k3.metric(tr("hist_avg", basis=basis), f"{hist_avg:,.0f} hg/ha", f"{(pred / hist_avg - 1) * 100:+.1f}%")
+    # Both metrics use t/ha so the % comparison is like-for-like; the hg/ha value sits underneath as a caption.
+    k1, k2 = st.columns(2)
+    k1.metric(tr("pred_yield"), f"{pred * C.HG_PER_HA_TO_T_PER_HA:.2f} t/ha")
+    k1.caption(f"= {pred:,.0f} hg/ha")
+    k2.metric(tr("hist_avg", basis=basis), f"{hist_avg * C.HG_PER_HA_TO_T_PER_HA:.2f} t/ha",
+              f"{(pred / hist_avg - 1) * 100:+.1f}%")
+    k2.caption(f"= {hist_avg:,.0f} hg/ha")
 
     show_explanation(ex, row, "hg/ha", f"{crop} · {country}, {year}")
 

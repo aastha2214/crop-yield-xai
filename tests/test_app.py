@@ -97,3 +97,16 @@ def test_unchecking_typical_area_enables_the_override(app_en):
     assert not at.number_input(key="rec_area_Maharashtra_Rabi").disabled
     at.checkbox(key="rec_use_typical__en").check().run()
     assert at.number_input(key="rec_area_Maharashtra_Rabi").disabled
+
+
+def test_predict_tab_metrics_share_one_unit(app_en):
+    """Predicted yield and Historical average are both shown in t/ha, with the hg/ha value as a caption."""
+    import re
+    pred, hist = app_en.metric[0], app_en.metric[1]            # the first two metrics are the Predict & Explain tab's
+    assert pred.label == "Predicted yield" and hist.label.startswith("Historical average")
+    assert re.fullmatch(r"\d+\.\d{2} t/ha", pred.value) and re.fullmatch(r"\d+\.\d{2} t/ha", hist.value)
+    caps = [c.value for c in app_en.caption]
+    pred_hg = round(float(pred.value.split()[0]) * 1e4, -2)           # t/ha -> hg/ha (to the nearest 100)
+    assert any(re.fullmatch(r"= [\d,]+ hg/ha", c) for c in caps)
+    assert any(abs(int(c[2:].split()[0].replace(",", "")) - pred_hg) <= 100 for c in caps if c.startswith("= "))
+    assert not any(x.label.startswith("= ") for x in app_en.metric)   # the old separate tonnes metric is gone
