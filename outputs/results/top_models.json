@@ -1,0 +1,43 @@
+{
+  "best_global": "XGBoost (tuned)",
+  "top2_types": [
+    "RandomForest",
+    "XGBoost"
+  ],
+  "log_choice": {
+    "LinearRegression": true,
+    "DecisionTree": false,
+    "RandomForest": false,
+    "XGBoost": false,
+    "MLP": false
+  },
+  "tuned_params": {
+    "random": {
+      "RandomForest": {
+        "model__max_depth": 20,
+        "model__max_features": 1.0,
+        "model__min_samples_leaf": 1,
+        "model__n_estimators": 149
+      },
+      "DecisionTree": {
+        "model__max_depth": 24,
+        "model__min_samples_leaf": 1
+      }
+    },
+    "time": {
+      "RandomForest": {
+        "model__max_depth": 20,
+        "model__max_features": 1.0,
+        "model__min_samples_leaf": 1,
+        "model__n_estimators": 149
+      },
+      "XGBoost": {
+        "model__colsample_bytree": 0.9162213204002109,
+        "model__learning_rate": 0.035543498097189236,
+        "model__max_depth": 10,
+        "model__n_estimators": 643,
+        "model__subsample": 0.6733618039413735
+      }
+    }
+  }
+}
