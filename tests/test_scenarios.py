@@ -2,7 +2,7 @@
 import joblib
 import pytest
 
-from src import advisor as A, config as C, data, india, scenarios as S
+from src import advisor as A, config as C, data, i18n, india, scenarios as S
 
 
 @pytest.fixture(scope="module")
@@ -52,3 +52,26 @@ def test_advice_from_trace_languages():
     _, _, trace = A.forward_chain({"rainfall": "low", "temp": "high"})
     en, hi = A.advice_from_trace(trace), A.advice_from_trace(trace, "hi")
     assert len(en) == len(hi) >= 1 and en != hi
+
+
+def test_every_rule_fact_is_translated():
+    """All fact names/values used by rules (except crop/season names) have a Hindi entry."""
+    for r in A.RULES:
+        for k, v in list(r.conditions.items()) + list(r.conclusions.items()):
+            assert f"factk.{k}" in i18n.T, k
+            if k not in ("season", "crop"):
+                assert f"factv.{v}" in i18n.T, (k, v)
+
+
+def test_every_ui_string_has_both_languages():
+    """The single dictionary is complete: every non-rule key has English and Hindi text."""
+    for key, entry in i18n.T.items():
+        if key.startswith("rule."):
+            assert entry.get("hi")
+        else:
+            assert entry.get("en") and entry.get("hi"), key
+
+
+def test_translation_formatting():
+    assert "{" not in i18n.tr("rec_chart_title", "hi", state="Punjab", season="Kharif", n=11)
+    assert i18n.tr("sc_rain_line", "hi", r=-30) == "वर्षा -30%"

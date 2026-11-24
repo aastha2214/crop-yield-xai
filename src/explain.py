@@ -129,20 +129,25 @@ class Explainer:
         txt = f"{v:,.0f}" if abs(v) >= 100 else f"{v:.2f}".rstrip("0").rstrip(".")
         return f"{txt} {u}".strip()
 
-    def waterfall(self, x_row: pd.DataFrame, path=None, title=None):
+    def waterfall(self, x_row: pd.DataFrame, path=None, title=None, lang="en"):
         """Waterfall plot for ONE prediction, with grouped (readable) features.
 
         Saves to `path` if given; with path=None the open Figure is returned
-        (used by Streamlit's st.pyplot)."""
+        (used by Streamlit's st.pyplot). lang='hi' draws the feature names in Hindi with a
+        Devanagari font (callers should pass i18n.plot_lang(lang) so it falls back to English
+        when no such font is installed)."""
         g = self.shap_grouped(x_row).iloc[0]
         row = x_row.iloc[0]
         disp = np.array([self._display(row, c) for c in self.groups], dtype=object)
-        exp = shap.Explanation(values=g.values, base_values=self.base_value, data=disp,
-                               feature_names=[self.labels[c] for c in self.groups])
-        plt.figure()
-        shap.plots.waterfall(exp, show=False, max_display=len(self.groups))
-        if title:
-            plt.title(title, fontsize=10)
+        hi = lang == "hi"
+        names = [i18n.tr(f"label.{self.labels[c]}", "hi") if hi and f"label.{self.labels[c]}" in i18n.T
+                 else self.labels[c] for c in self.groups]
+        exp = shap.Explanation(values=g.values, base_values=self.base_value, data=disp, feature_names=names)
+        with plt.rc_context(i18n.rc(lang)):
+            plt.figure()
+            shap.plots.waterfall(exp, show=False, max_display=len(self.groups))
+            if title:
+                plt.title(title, fontsize=10)
         fig = plt.gcf()
         if path is None:
             return fig
@@ -174,11 +179,11 @@ class Explainer:
             lvl = self.level(col, row[col]) if col in self.num else ""
             name = self.labels[col]
             if hi:
-                name_hi = i18n.LABELS_HI.get(name, name)
+                name_hi = i18n.tr(f"label.{name}", "hi") if f"label.{name}" in i18n.T else name
                 if col in self.cat:
                     subj = f"{name_hi} '{row[col]}'"
                 elif lvl:
-                    subj = f"{i18n.LEVELS_HI[lvl]} {name_hi} ({self._display(row, col)})"
+                    subj = f"{i18n.tr('level.' + lvl, 'hi')} {name_hi} ({self._display(row, col)})"
                 else:
                     subj = f"{name_hi} ({self._display(row, col)})"
                 parts.append(f"{subj} ने अनुमानित उपज को {amt} {unit} {'बढ़ाया' if up else 'घटाया'}")
@@ -192,7 +197,7 @@ class Explainer:
                 subj = f"{name} ({self._display(row, col)})"
             parts.append(f"{subj} {verb} the predicted yield by {amt} {unit}")
         if hi:
-            return (f"मॉडल का अनुमान {self._num(pred)} {unit} है (औसत अनुमान: {self._num(self.base_value)})। "
+            return (i18n.tr("sent.head", "hi", pred=self._num(pred), unit=unit, base=self._num(self.base_value))
                     + "; ".join(parts) + "।")
         return (f"The model predicts {self._num(pred)} {unit} (average prediction: {self._num(self.base_value)}). "
                 + "; ".join(parts) + ".")

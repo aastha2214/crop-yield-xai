@@ -10,6 +10,8 @@ from dataclasses import dataclass, field, replace
 
 import numpy as np
 
+from . import i18n
+
 # Every conclusion starting with "advise_" is a piece of advice shown to the farmer;
 # other conclusions (drought_risk, monsoon_deficit...) are intermediate facts that
 # can trigger further rules - this is what makes chaining non-trivial.
@@ -64,27 +66,8 @@ RULES = [
 ]
 
 
-# Simple-Hindi version of every rule text (keyed by rule name). Kept separate from RULES so the
-# English knowledge base stays easy to read; merged into the Rule objects just below.
-RULE_TEXT_HI = {
-    "R1": "कम बारिश और अधिक तापमान: सूखे का खतरा अधिक है।",
-    "R2": "गर्म और नम मौसम में फफूंद और कीट-रोग फैलने की संभावना अधिक होती है।",
-    "R3": "सिंचाई का समय-सारणी बनाएँ (जैसे ड्रिप सिंचाई) और सूखा सहने वाली किस्में चुनें।",
-    "R4": "कीटनाशक अधिक डालने पर भी उपज कम है: कीट प्रबंधन की समीक्षा करें (खेत की निगरानी, सही मात्रा, एकीकृत कीट प्रबंधन)।",
-    "R5": "खेतों में फफूंद रोग की निगरानी करें, पानी की निकासी ठीक रखें और पौधों के बीच उचित दूरी रखें।",
-    "R6": "अधिक बारिश और कम अनुमानित उपज: खेत में जलभराव की आशंका है।",
-    "R7": "खेत की जल-निकासी सुधारें और ऊँची क्यारियाँ बनाने पर विचार करें।",
-    "R8": "अधिक तापमान और कम अनुमानित उपज: फसल पर गर्मी का तनाव हो सकता है।",
-    "R9": "बुवाई का समय बदलें या गर्मी सहने वाली किस्में लगाएँ; मिट्टी को ठंडा रखने के लिए मल्चिंग करें।",
-    "R10": "स्थितियाँ अनुकूल हैं: अपनी मौजूदा खेती की पद्धति जारी रखें और जो तरीका काम करे उसे लिखकर रखें।",
-    "R11": "खरीफ में कम बारिश का मतलब है मानसून की कमी।",
-    "R12": "पानी बचाने के उपाय अपनाएँ (मल्चिंग, खेत-तालाब) और अपने नज़दीकी कृषि विज्ञान केंद्र (KVK) से सलाह लें।",
-    "R13": "और उर्वरक डालने से पहले मृदा स्वास्थ्य कार्ड (Soil Health Card) के लिए मिट्टी की जाँच कराएँ।",
-    "R14": "रबी में अधिक तापमान (जैसे गेहूँ में दाना बनते समय) का मतलब है अंतिम चरण में गर्मी का खतरा।",
-    "R15": "गेहूँ/रबी की फसल जल्दी बोएँ, दाना भरते समय सिंचाई करें और गर्मी सहने वाली किस्में लगाएँ।",
-    "R16": "प्रधानमंत्री फसल बीमा योजना (PMFBY) में नामांकन कराने पर विचार करें।",
-}
-RULES = [replace(r, text_hi=RULE_TEXT_HI[r.name]) for r in RULES]
+# Hindi rule texts live in the single translation dictionary (src/i18n.py, keys 'rule.R1' ...).
+RULES = [replace(r, text_hi=i18n.T[f"rule.{r.name}"]["hi"]) for r in RULES]
 
 
 # ------------------------------------------------------------ discretisation
