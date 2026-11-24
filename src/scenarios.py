@@ -70,13 +70,16 @@ def climate_grid(model, base: dict, features: list, rain_col: str, temp_col,
 
 
 # ----------------------------------------------------------------- recommender
-def recommend(model, df: pd.DataFrame, state: str, season: str, rainfall: float, area: float,
-              year: int, min_rows: int = 5) -> pd.DataFrame:
+def recommend(model, df: pd.DataFrame, state: str, season: str, rainfall: float, area=None,
+              year: int = 2019, min_rows: int = 5) -> pd.DataFrame:
     """Predict yield for every crop grown in `state` during `season`.
 
-    Fertilizer/pesticide per hectare are set to each crop's own typical (median) level in that
-    state and season, because the user does not specify them. Returns one row per crop with the
-    prediction, the crop's historical mean yield there, and the % difference between them.
+    Each crop is described by ITS OWN typical conditions there: median area, and median fertilizer and
+    pesticide per hectare. Pass `area` to override the area for ALL crops (the app's optional input).
+    Areas differ hugely between crops (state-wide totals; e.g. rice is cultivated on far more hectares
+    than sesame), so one shared area would unfairly favour some crops.
+    Returns one row per crop: prediction, area used, the crop's historical mean yield there and the
+    % difference between them.
     """
     sub = df[(df[C.I_STATE] == state) & (df[C.I_SEASON] == season)]
     counts = sub[C.I_CROP].value_counts()
@@ -85,15 +88,93 @@ def recommend(model, df: pd.DataFrame, state: str, season: str, rainfall: float,
     for crop in crops:
         c = sub[sub[C.I_CROP] == crop]
         rows.append({C.I_CROP: crop, C.I_SEASON: season, C.I_STATE: state, C.I_YEAR: year,
-                     C.I_AREA: area, C.I_RAIN: rainfall,
+                     C.I_AREA: float(c[C.I_AREA].median()) if area is None else float(area), C.I_RAIN: rainfall,
                      C.I_FERT_HA: float(c[C.I_FERT_HA].median()), C.I_PEST_HA: float(c[C.I_PEST_HA].median())})
         meta.append((crop, float(c[C.I_TARGET].mean()), len(c)))
     if not rows:
-        return pd.DataFrame(columns=["crop", "predicted", "hist_avg", "vs_usual_pct", "n_rows", "row"])
+        return pd.DataFrame(columns=["crop", "predicted", "hist_avg", "vs_usual_pct", "n_rows", "area_used", "row"])
     X = pd.DataFrame(rows)[C.I_FEATURES]
     pred = model.predict(X)
-    out = pd.DataFrame({"crop": [m[0] for m in meta], "predicted": pred,
+    out = pd.DataFrame({"crop": [m[0] for m in meta], "predicted": pred, "area_used": X[C.I_AREA].to_numpy(),
                         "hist_avg": [m[1] for m in meta], "n_rows": [m[2] for m in meta]})
     out["vs_usual_pct"] = (out.predicted / out.hist_avg - 1) * 100
     out["row"] = list(X.to_dict("records"))
     return out.sort_values("predicted", ascending=False).reset_index(drop=True)
+
+
+# ----------------------------------------------------------------- default-scenario scan
+def behaviour_metrics(grid: pd.DataFrame) -> dict:
+    """How 'intuitive and smooth' a scenario grid is (grid = % change vs today, rain x temp).
+
+    dry_drop  : % the yield FALLS at -30 % rain (temperature unchanged)   - want >= 5
+    hot_drop  : % the yield FALLS at +3 °C (rainfall unchanged)           - want >= 5 (needs a temp input)
+    viol_rain : total % points by which yield wrongly FALLS as rain rises from -30 % to 0 %
+    viol_heat : total % points by which yield wrongly RISES as temperature rises
+    rough     : mean |second difference| along both axes (0 = perfectly straight curves)
+    score     : viol_rain + viol_heat + rough  (lower = more intuitive and smoother)
+    """
+    dry = grid.loc[[-30, -15, 0]]                         # dry side only: wetter should never hurt here
+    d_rain = dry.diff().iloc[1:]                          # change when rain increases, per temperature column
+    viol_rain = float((-d_rain).clip(lower=0).to_numpy().sum())
+    rough_parts = [dry.diff().diff().iloc[2:].abs().to_numpy().mean()]
+    out = {"dry_drop": float(-grid.loc[-30, 0.0]), "viol_rain": viol_rain}
+    if grid.shape[1] > 1:                                 # a temperature axis exists
+        d_heat = grid.diff(axis=1).iloc[:, 1:]            # change when temperature rises, per rain row
+        out["hot_drop"] = float(-grid.loc[0, grid.columns[-1]])
+        out["viol_heat"] = float(d_heat.clip(lower=0).to_numpy().sum())
+        rough_parts.append(grid.diff(axis=1).diff(axis=1).iloc[:, 2:].abs().to_numpy().mean())
+    else:
+        out["hot_drop"], out["viol_heat"] = float("nan"), 0.0
+    out["rough"] = float(np.mean(rough_parts))
+    out["score"] = out["viol_rain"] + out["viol_heat"] + out["rough"]
+    return out
+
+
+def scan_global(model, df: pd.DataFrame, last_year: int, min_rows: int = 8) -> pd.DataFrame:
+    """Behaviour metrics for EVERY country-crop pair in the global dataset."""
+    rows = []
+    for (country, crop), g in df.groupby([C.G_COUNTRY, C.G_CROP]):
+        if len(g) < min_rows:
+            continue
+        base = global_baseline(df, country, crop, last_year)
+        base_pred, grid = climate_grid(model, base, C.G_FEATURES, C.G_RAIN, C.G_TEMP)
+        rows.append({"model": "global", "country_or_state": country, "crop": crop, "season": "",
+                     "baseline": base_pred, **behaviour_metrics(grid)})
+    return pd.DataFrame(rows)
+
+
+def scan_india(model, df: pd.DataFrame, year: int, min_rows: int = 8) -> pd.DataFrame:
+    """Behaviour metrics for EVERY state-crop-season in the India data (rainfall axis only)."""
+    rows = []
+    for (state, crop, season), g in df.groupby([C.I_STATE, C.I_CROP, C.I_SEASON]):
+        if len(g) < min_rows:
+            continue
+        base = india_baseline(df, state, crop, season, year)
+        base_pred, grid = climate_grid(model, base, C.I_FEATURES, C.I_RAIN, None)
+        rows.append({"model": "india", "country_or_state": state, "crop": crop, "season": season,
+                     "baseline": base_pred, **behaviour_metrics(grid)})
+    return pd.DataFrame(rows)
+
+
+def qualifying(scan: pd.DataFrame, min_drop: float = 5.0) -> pd.DataFrame:
+    """Rows whose yield falls >= min_drop % with less rain AND (if a temp axis exists) with +3 °C, best first."""
+    ok = scan[(scan.dry_drop >= min_drop) & ((scan.hot_drop >= min_drop) | scan.hot_drop.isna())]
+    return ok.sort_values("score").reset_index(drop=True)
+
+
+def main():
+    """Scan every combination and save outputs/results/scenario_scan_*.csv (python -m src.scenarios)."""
+    import joblib
+    from . import data, india
+    gmodel, gdf, meta = joblib.load(C.GLOBAL_MODEL_PATH), data.clean(verbose=False), joblib.load(C.GLOBAL_META_PATH)
+    imodel, idf = joblib.load(C.INDIA_MODEL_PATH), india.clean(verbose=False)
+    g = scan_global(gmodel, gdf, meta["year_range"][1]).round(3)
+    i = scan_india(imodel, idf, last_full_year(idf)).round(3)
+    g.to_csv(C.RESULTS_DIR / "scenario_scan_global.csv", index=False)
+    i.to_csv(C.RESULTS_DIR / "scenario_scan_india.csv", index=False)
+    print(f"global combos scanned: {len(g)}, qualifying (both >=5%): {len(qualifying(g))}")
+    print(f"india combos scanned: {len(i)}, qualifying on rainfall (>=5%): {len(qualifying(i))}")
+
+
+if __name__ == "__main__":
+    main()

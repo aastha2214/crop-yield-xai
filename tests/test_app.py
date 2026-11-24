@@ -73,8 +73,7 @@ def test_language_switch_keeps_choices(app_hi):
 
 
 def test_recommender_area_default_follows_state_and_season(app_en):
-    """Default Area = median area of the selected state AND season, and it refreshes when they change."""
-    import pandas as pd
+    """Area box defaults to the state+season median (refreshing on change); typical-area checkbox is on."""
     from src import india
     df = india.clean(verbose=False)
 
@@ -82,8 +81,19 @@ def test_recommender_area_default_follows_state_and_season(app_en):
         return float(df[(df.State == state) & (df.Season == season)].Area.median())
 
     at = app_en
-    assert at.number_input(key="rec_area_Punjab_Kharif").value == pytest.approx(median("Punjab", "Kharif"))
+    assert at.checkbox(key="rec_use_typical__en").value is True
+    box = at.number_input(key="rec_area_Punjab_Kharif")
+    assert box.value == pytest.approx(median("Punjab", "Kharif")) and box.disabled     # optional, off by default
     at.selectbox(key="rec_state").set_value("Maharashtra").run()
     at.selectbox(key="rec_season").set_value("Rabi").run()
     assert at.number_input(key="rec_area_Maharashtra_Rabi").value == pytest.approx(median("Maharashtra", "Rabi"))
     assert any("Typical area for Maharashtra, Rabi" in c.value for c in at.caption)
+
+
+def test_unchecking_typical_area_enables_the_override(app_en):
+    at = app_en
+    at.checkbox(key="rec_use_typical__en").uncheck().run()
+    assert not at.exception
+    assert not at.number_input(key="rec_area_Maharashtra_Rabi").disabled
+    at.checkbox(key="rec_use_typical__en").check().run()
+    assert at.number_input(key="rec_area_Maharashtra_Rabi").disabled

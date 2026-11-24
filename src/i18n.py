@@ -91,11 +91,16 @@ _add("temp_outlook", "Temperature outlook (advisory only - the India model has n
      "तापमान का अनुमान (केवल सलाह के लिए - भारत मॉडल में तापमान इनपुट नहीं है)")
 _add("rec_title", "🌱 Crop Recommender", "🌱 फसल सुझावक")
 _add("rec_caption",
-     "Choose a state, season, rainfall and area. The model predicts the yield of every crop grown in that state and season and ranks the top 5. Fertilizer and pesticide per hectare are set to each crop's typical level there.",
-     "राज्य, सीज़न, वर्षा और क्षेत्रफल चुनें। मॉडल उस राज्य और सीज़न में उगाई जाने वाली हर फसल की उपज का अनुमान लगाकर शीर्ष 5 फसलों को क्रम से दिखाता है। प्रति हेक्टेयर उर्वरक और कीटनाशक वहाँ उस फसल के सामान्य स्तर पर रखे गए हैं।")
+     "Choose a state, season, rainfall and area. The model predicts the yield of every crop grown in that state and season and ranks the top 5. Fertilizer and pesticide per hectare, and by default the area too, are set to each crop's own typical level there.",
+     "राज्य, सीज़न, वर्षा और क्षेत्रफल चुनें। मॉडल उस राज्य और सीज़न में उगाई जाने वाली हर फसल की उपज का अनुमान लगाकर शीर्ष 5 फसलों को क्रम से दिखाता है। प्रति हेक्टेयर उर्वरक और कीटनाशक, और (डिफ़ॉल्ट रूप से) क्षेत्रफल भी, वहाँ उस फसल के अपने सामान्य स्तर पर रखे गए हैं।")
 _add("rec_area_caption",
      "Typical area for {state}, {season}: median {med} ha; the middle half of records lies between {lo} and {hi} ha (state-wide totals per crop, from the dataset).",
      "{state}, {season} के लिए सामान्य क्षेत्रफल: माध्यिका {med} ha; आधे रिकॉर्ड {lo} से {hi} ha के बीच हैं (डेटासेट में हर फसल के राज्य-स्तरीय कुल)।")
+_add("rec_use_typical", "Use each crop's typical area", "हर फसल का सामान्य क्षेत्रफल इस्तेमाल करें")
+_add("rec_use_typical_help",
+     "Checked: every crop is predicted with ITS OWN median area in this state and season. Unchecked: the Area box below is applied to all crops.",
+     "चुना हुआ: हर फसल का अनुमान इस राज्य और सीज़न में उसके अपने माध्यिका क्षेत्रफल से लगाया जाता है। न चुना हुआ: नीचे दिया गया क्षेत्रफल सभी फसलों पर लागू होता है।")
+_add("rec_area_disabled", "(not used while 'Use each crop's typical area' is checked)", "('हर फसल का सामान्य क्षेत्रफल' चुने रहने पर इसका उपयोग नहीं होता)")
 _add("rec_rank_by", "Rank crops by", "फसलों को इस आधार पर क्रम दें")
 _add("rec_rank_pred", "Predicted yield (t/ha)", "अनुमानित उपज (t/ha)")
 _add("rec_rank_pct", "Predicted yield vs. the crop's usual yield here (%)", "अनुमानित उपज, यहाँ उस फसल की सामान्य उपज की तुलना में (%)")
@@ -111,6 +116,7 @@ _add("col.crop", "Crop", "फसल")
 _add("col.predicted_tha", "Predicted (t/ha)", "अनुमानित (t/ha)")
 _add("col.usual_tha", "Usual yield here (t/ha)", "यहाँ सामान्य उपज (t/ha)")
 _add("col.vs_usual", "Vs usual (%)", "सामान्य की तुलना में (%)")
+_add("col.area_used", "Area used (ha)", "उपयोग किया गया क्षेत्रफल (ha)")
 _add("col.past_records", "Past records", "पिछले रिकॉर्ड")
 
 # ------------------------------------------------------------------ tab 3: climate scenarios

@@ -1,5 +1,6 @@
 """Tests for the scenario / recommender logic and the Hindi translations (use the saved models)."""
 import joblib
+import pandas as pd
 import pytest
 
 from src import advisor as A, config as C, data, i18n, india, scenarios as S
@@ -77,11 +78,46 @@ def test_translation_formatting():
     assert i18n.tr("sc_rain_line", "hi", r=-30) == "वर्षा -30%"
 
 
-def test_default_scenario_crop_behaves_intuitively(gstuff):
-    """The app's default scenario (India, Cassava): less rain and +3 °C both lower the predicted yield."""
+def test_default_scenarios_match_the_scan():
+    """App defaults (Tajikistan Maize; Punjab Groundnut Kharif) are the best rows of the saved full scans."""
+    g = pd.read_csv(C.RESULTS_DIR / "scenario_scan_global.csv")
+    i = pd.read_csv(C.RESULTS_DIR / "scenario_scan_india.csv")
+    assert len(g) > 500 and len(i) > 900                       # every country-crop and state-crop-season was scanned
+    best_g, best_i = S.qualifying(g).iloc[0], S.qualifying(i).iloc[0]
+    assert (best_g.country_or_state, best_g.crop) == ("Tajikistan", "Maize")
+    assert (best_i.country_or_state, best_i.crop, best_i.season) == ("Punjab", "Groundnut", "Kharif")
+
+
+def test_default_scenarios_fall_at_least_5_percent(gstuff, istuff):
     model, df, meta = gstuff
-    base = S.global_baseline(df, "India", "Cassava", meta["year_range"][1])
+    base = S.global_baseline(df, "Tajikistan", "Maize", meta["year_range"][1])
     _, grid = S.climate_grid(model, base, C.G_FEATURES, C.G_RAIN, C.G_TEMP)
-    assert (grid.loc[-30] < 0).all()          # 30 % less rain: below today at every warming level
-    assert grid.loc[0, 3.0] < 0               # +3 °C at unchanged rain: below today
-    assert grid.loc[-30, 3.0] < grid.loc[0, 0.0]   # dry AND hot is worse than today
+    m = S.behaviour_metrics(grid)
+    assert m["dry_drop"] >= 5 and m["hot_drop"] >= 5           # less rain AND +3 °C both cut the yield by >= 5 %
+    imodel, idf = istuff
+    ib = S.india_baseline(idf, "Punjab", "Groundnut", "Kharif", S.last_full_year(idf))
+    _, igrid = S.climate_grid(imodel, ib, C.I_FEATURES, C.I_RAIN, None)
+    assert S.behaviour_metrics(igrid)["dry_drop"] >= 5          # India model has no temperature input
+
+
+def test_behaviour_metrics_on_synthetic_grids():
+    rains, temps = S.RAIN_STEPS, S.TEMP_STEPS
+    ideal = pd.DataFrame([[ (r / 30) * 10 - t * 3 for t in temps] for r in rains], index=rains, columns=temps)
+    m = S.behaviour_metrics(ideal)                              # straight, intuitive surface
+    assert m["viol_rain"] == 0 and m["viol_heat"] == 0 and m["rough"] == pytest.approx(0, abs=1e-9)
+    assert m["dry_drop"] == pytest.approx(10) and m["hot_drop"] == pytest.approx(9)
+    wrong = ideal.copy(); wrong.loc[:, :] = -ideal.values       # more rain/heat gives MORE yield: counter-intuitive
+    assert S.behaviour_metrics(wrong)["viol_rain"] > 0 and S.behaviour_metrics(wrong)["viol_heat"] > 0
+
+
+def test_recommender_uses_each_crops_own_area(istuff):
+    model, df = istuff
+    sub = df[(df.State == "Punjab") & (df.Season == "Kharif")]
+    rec = S.recommend(model, df, "Punjab", "Kharif", float(sub.Annual_Rainfall.median()), None, 2019)
+    assert rec.area_used.nunique() > 5                          # areas differ by crop
+    for crop, area in zip(rec.crop, rec.area_used):
+        assert area == pytest.approx(float(sub[sub.Crop == crop].Area.median()))
+    rice = rec[rec.crop == "Rice"].iloc[0]
+    assert abs(rice.vs_usual_pct) < 15                          # Punjab Kharif rice close to its usual yield
+    shared = S.recommend(model, df, "Punjab", "Kharif", float(sub.Annual_Rainfall.median()), 8000.0, 2019)
+    assert (shared.area_used == 8000.0).all()                   # the optional override still works

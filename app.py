@@ -104,6 +104,14 @@ def stable_radio(label, options, state_key, format_func):
     return stable_choice(st.radio, label, options, state_key, format_func, horizontal=True)
 
 
+def stable_checkbox(label, state_key, default=True, **kw):
+    """Checkbox whose state survives a language switch (same reason as stable_choice)."""
+    wkey = f"{state_key}__{lang}"
+    st.session_state.setdefault(state_key, default)
+    st.session_state[wkey] = st.session_state[state_key]
+    return st.checkbox(label, key=wkey, on_change=lambda: st.session_state.__setitem__(state_key, st.session_state[wkey]), **kw)
+
+
 def level_fmt(v):
     """Display low/normal/high in the current language."""
     return tr(f"level.{v}")
@@ -282,14 +290,16 @@ with tab2:
     rkey = f"rec_rain_{rstate}_{rseason}"
     st.session_state.setdefault(rkey, float(rsub[C.I_RAIN].median()))
     rrain = r3.number_input(tr("rain_annual_mm"), 0.0, 7000.0, step=50.0, key=rkey)
-    # default Area = median for this state AND season; the key changes with them, so the default refreshes
+    # Area: by default every crop uses ITS OWN typical (median) area in this state and season;
+    # the box below is an optional override that is applied to all crops when the checkbox is cleared.
     a_q1, a_med, a_q3 = (float(v) for v in rsub[C.I_AREA].quantile([0.25, 0.5, 0.75]))
-    rarea = r4.number_input(tr("area_crop"), 1.0, 5e7, a_med, step=1000.0,
+    use_typical = stable_checkbox(tr("rec_use_typical"), "rec_use_typical", True, help=tr("rec_use_typical_help"))
+    rarea = r4.number_input(tr("area_crop"), 1.0, 5e7, a_med, step=1000.0, disabled=use_typical,
                             key=f"rec_area_{rstate}_{rseason}", help=tr("area_help"))
     st.caption(tr("rec_area_caption", state=rstate, season=rseason, med=f"{a_med:,.0f}", lo=f"{a_q1:,.0f}", hi=f"{a_q3:,.0f}"))
     rank_by = stable_radio(tr("rec_rank_by"), ["pred", "pct"], "rec_rank",
                            lambda v: tr("rec_rank_pred" if v == "pred" else "rec_rank_pct"))
-    rec = scenarios.recommend(iex.fitted, idf, rstate, rseason, rrain, rarea, last_year)
+    rec = scenarios.recommend(iex.fitted, idf, rstate, rseason, rrain, None if use_typical else rarea, last_year)
     if rec.empty:
         st.info(tr("rec_none"))
     else:
@@ -301,9 +311,9 @@ with tab2:
                            tr("rec_chart_title", state=rstate, season=rseason, n=len(rec)),
                            fmt="{:+.1f}%" if by_pct else "{:.2f}"))
         names = {"crop": tr("col.crop"), "predicted": tr("col.predicted_tha"), "hist_avg": tr("col.usual_tha"),
-                 "vs_usual_pct": tr("col.vs_usual"), "n_rows": tr("col.past_records")}
+                 "area_used": tr("col.area_used"), "vs_usual_pct": tr("col.vs_usual"), "n_rows": tr("col.past_records")}
         st.dataframe(top5[list(names)].rename(columns=names).style.format(
-            {names["predicted"]: "{:.3f}", names["hist_avg"]: "{:.3f}", names["vs_usual_pct"]: "{:+.1f}"}), hide_index=True)
+            {names["predicted"]: "{:.3f}", names["hist_avg"]: "{:.3f}", names["area_used"]: "{:,.0f}", names["vs_usual_pct"]: "{:+.1f}"}), hide_index=True)
         st.warning(tr("rec_warn"))
         best = top5.iloc[0]
         st.markdown(f"**{tr('rec_shap_top', crop=best.crop)}**")
@@ -320,14 +330,14 @@ with tab_sc:
     use_global = mode == "global"
     k1, k2, k3 = st.columns(3)
     if use_global:
-        country = pick(tr("country"), gmeta["countries"], "sc_country", "India", k1)
-        crop_s = pick(tr("crop"), sorted(gdf[gdf[C.G_COUNTRY] == country][C.G_CROP].unique()), "sc_crop", "Cassava", k2)   # default chosen because its curves behave intuitively (see README)
+        country = pick(tr("country"), gmeta["countries"], "sc_country", "Tajikistan", k1)
+        crop_s = pick(tr("crop"), sorted(gdf[gdf[C.G_COUNTRY] == country][C.G_CROP].unique()), "sc_crop", "Maize", k2)   # defaults = best-behaved combination found by `python -m src.scenarios`
         base = scenarios.global_baseline(gdf, country, crop_s, gmeta["year_range"][1])
         model, feats, rain_col, temp_col, unit = gex.fitted, C.G_FEATURES, C.G_RAIN, C.G_TEMP, "hg/ha"
         where = f"{crop_s} · {country}"
     else:
         st_s = pick(tr("state"), imeta["states"], "sc_state", "Punjab", k1)
-        crop_s = pick(tr("crop"), sorted(idf[idf[C.I_STATE] == st_s][C.I_CROP].unique()), "sc_icrop", "Rice", k2)
+        crop_s = pick(tr("crop"), sorted(idf[idf[C.I_STATE] == st_s][C.I_CROP].unique()), "sc_icrop", "Groundnut", k2)
         season_s = pick(tr("season"), sorted(idf[(idf[C.I_STATE] == st_s) & (idf[C.I_CROP] == crop_s)][C.I_SEASON].unique()),
                         "sc_iseason", "Kharif", k3)
         base = scenarios.india_baseline(idf, st_s, crop_s, season_s, scenarios.last_full_year(idf))
