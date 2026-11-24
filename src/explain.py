@@ -129,8 +129,11 @@ class Explainer:
         txt = f"{v:,.0f}" if abs(v) >= 100 else f"{v:.2f}".rstrip("0").rstrip(".")
         return f"{txt} {u}".strip()
 
-    def waterfall(self, x_row: pd.DataFrame, path, title=None):
-        """Waterfall plot for ONE prediction, with grouped (readable) features."""
+    def waterfall(self, x_row: pd.DataFrame, path=None, title=None):
+        """Waterfall plot for ONE prediction, with grouped (readable) features.
+
+        Saves to `path` if given; with path=None the open Figure is returned
+        (used by Streamlit's st.pyplot)."""
         g = self.shap_grouped(x_row).iloc[0]
         row = x_row.iloc[0]
         disp = np.array([self._display(row, c) for c in self.groups], dtype=object)
@@ -140,7 +143,10 @@ class Explainer:
         shap.plots.waterfall(exp, show=False, max_display=len(self.groups))
         if title:
             plt.title(title, fontsize=10)
-        plt.savefig(path, dpi=130, bbox_inches="tight"); plt.close()
+        fig = plt.gcf()
+        if path is None:
+            return fig
+        fig.savefig(path, dpi=130, bbox_inches="tight"); plt.close(fig)
 
     # --------------------------------------------------------- plain English
     def level(self, col, value) -> str:
