@@ -57,7 +57,7 @@ _add("drought_help_global", "Sets low rainfall and high temperature so the exper
 _add("drought_help_india", "Sets Kharif season, low rainfall and a high temperature outlook so the expert-system rules fire.",
      "खरीफ सीज़न, कम वर्षा और अधिक तापमान का अनुमान भर देता है, ताकि विशेषज्ञ प्रणाली के नियम लागू हों।")
 _add("pred_yield", "Predicted yield", "अनुमानित उपज")
-_add("tonnes_per_ha", "= tonnes per hectare", "टन प्रति हेक्टेयर")
+_add("tonnes_per_ha", "Same in tonnes per hectare", "टन प्रति हेक्टेयर में")
 _add("hist_avg", "Historical average ({basis})", "ऐतिहासिक औसत ({basis})")
 _add("basis_no_history", "{crop} (all countries; no {country} history)", "{crop} (सभी देश; {country} का कोई इतिहास नहीं)")
 _add("basis_state_crop", "state · crop", "राज्य · फसल")
