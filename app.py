@@ -78,7 +78,7 @@ def show_explanation(ex: Explainer, row: pd.DataFrame, unit: str, title: str):
 
 
 st.title("🌾 Crop Yield Prediction with Explainable AI")
-st.caption("PAI101 · prediction + SHAP explanations + rule-based expert system · global & India")
+st.caption("Aastha Kumari · Thapar Institute of Engineering and Technology")
 tab1, tab2, tab3 = st.tabs(["Predict & Explain", "India Insights", "Model Evaluation"])
 
 # =================================================================== TAB 1
