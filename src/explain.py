@@ -150,6 +150,11 @@ class Explainer:
         lo, hi = self.q[col]
         return "low" if value < lo else "high" if value > hi else "typical"
 
+    @staticmethod
+    def _num(v: float) -> str:
+        """Format a yield amount: whole numbers when large, 2 decimals when small."""
+        return f"{v:,.0f}" if abs(v) >= 100 else f"{v:,.2f}"
+
     def sentence(self, x_row: pd.DataFrame, top_k=3, unit="hg/ha") -> str:
         """Turn the top-k SHAP contributions into a plain-English sentence."""
         g = self.shap_grouped(x_row).iloc[0]
@@ -167,8 +172,8 @@ class Explainer:
                 subj = f"{lvl.capitalize()} {name} ({self._display(row, col)})"
             else:
                 subj = f"{self.labels[col]} ({self._display(row, col)})"
-            parts.append(f"{subj} {verb} the predicted yield by {amt:,.0f} {unit}")
-        return (f"The model predicts {pred:,.0f} {unit} (average prediction: {self.base_value:,.0f}). "
+            parts.append(f"{subj} {verb} the predicted yield by {self._num(amt)} {unit}")
+        return (f"The model predicts {self._num(pred)} {unit} (average prediction: {self._num(self.base_value)}). "
                 + "; ".join(parts) + ".")
 
     def contributions(self, x_row: pd.DataFrame) -> pd.Series:

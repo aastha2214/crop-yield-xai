@@ -36,7 +36,8 @@ def remove_yield_outliers(df: pd.DataFrame, k: float = 3.0, min_rows: int = 20):
 def clean(verbose: bool = True) -> pd.DataFrame:
     """Cleaned India dataframe. Target = Production / Area (recomputed).
 
-    Steps: strip text, drop missing / zero Area or Production, recompute yield and
+    Steps: strip text, drop missing / zero Area or Production, exclude crops measured in
+    a different unit (coconut = nuts), recompute yield and
     compare it with the shipped Yield column, then remove extreme per-crop outliers.
     """
     df = load_raw()
@@ -46,10 +47,12 @@ def clean(verbose: bool = True) -> pd.DataFrame:
     df = df.dropna(subset=[C.I_AREA, C.I_PROD])
     df = df[(df[C.I_AREA] > 0) & (df[C.I_PROD] > 0)]
     n1 = len(df)
+    n_excl = int(df[C.I_CROP].isin(C.I_EXCLUDE_CROPS).sum())
+    df = df[~df[C.I_CROP].isin(C.I_EXCLUDE_CROPS)]      # different unit (nuts), see config
     recomputed = df[C.I_PROD] / df[C.I_AREA]
     diff = (recomputed - df[C.I_TARGET]).abs()
     rel = diff / recomputed
-    info = {"rows_raw": n0, "after_zero_missing_drop": n1,
+    info = {"rows_raw": n0, "after_zero_missing_drop": n1, "excluded_other_unit_rows": n_excl,
             "median_abs_diff": float(diff.median()), "max_abs_diff": float(diff.max()),
             "pct_rows_rel_diff_gt_1pct": float((rel > 0.01).mean() * 100)}
     df = df.assign(**{C.I_TARGET: recomputed}).drop_duplicates()

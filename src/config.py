@@ -55,6 +55,9 @@ I_CAT = [I_CROP, I_SEASON, I_STATE]
 I_NUM = [I_YEAR, I_AREA, I_RAIN, I_FERT, I_PEST]
 I_FEATURES = I_CAT + I_NUM       # NOTE: Production deliberately excluded (target leak)
 I_TEST_YEARS = 4
+# Coconut is recorded in NUMBER OF NUTS per hectare (yields in the thousands), not tonnes,
+# so it is not comparable with other crops and would dominate squared-error metrics.
+I_EXCLUDE_CROPS = ["Coconut"]
 
 HG_PER_HA_TO_T_PER_HA = 1e-4          # 1 hg = 0.1 kg and 1 t = 1000 kg, so 1 hg/ha = 1e-4 t/ha
 
