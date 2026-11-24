@@ -28,11 +28,11 @@ def model_label(name: str, lang: str) -> str:
     return name.replace("(tuned)", f"({_t('model.tuned', lang)})")
 
 
-def top_states(df: pd.DataFrame, lang: str):
+def top_states(df: pd.DataFrame, lang: str, figsize=(7, 4.2)):
     """Top 10 states by total production."""
     tp = df.groupby(C.I_STATE)[C.I_PROD].sum().sort_values(ascending=False).head(10)
     with plt.rc_context(i18n.rc(lang)):
-        fig, ax = plt.subplots(figsize=(7, 4.2))
+        fig, ax = plt.subplots(figsize=figsize)
         (tp[::-1] / 1e6).plot.barh(color="#e9c46a", ax=ax)
         ax.set(xlabel=_t("ch_top_states_x", lang), ylabel=_t("state", lang), title=_t("ch_top_states", lang))
         fig.tight_layout()
@@ -40,11 +40,11 @@ def top_states(df: pd.DataFrame, lang: str):
     return fig
 
 
-def yield_trends(df: pd.DataFrame, lang: str):
+def yield_trends(df: pd.DataFrame, lang: str, figsize=(10, 5.2)):
     """Median yield per year for the major crops (2 x 3 small multiples)."""
     tr = df[df[C.I_CROP].isin(MAJOR_CROPS)].groupby([C.I_YEAR, C.I_CROP])[C.I_TARGET].median().unstack()
     with plt.rc_context(i18n.rc(lang)):
-        fig, axes = plt.subplots(2, 3, figsize=(10, 5.2), sharex=True)
+        fig, axes = plt.subplots(2, 3, figsize=figsize, sharex=True)
         for ax, crop in zip(axes.ravel(), MAJOR_CROPS):
             ax.plot(tr.index, tr[crop], marker="o", ms=3)
             ax.set_title(crop, fontsize=10)
@@ -58,13 +58,13 @@ def yield_trends(df: pd.DataFrame, lang: str):
     return fig
 
 
-def state_crop_heatmap(df: pd.DataFrame, lang: str):
+def state_crop_heatmap(df: pd.DataFrame, lang: str, figsize=(8, 5.8)):
     """Median yield for the 15 best-covered states x 8 crops."""
     states = df[C.I_STATE].value_counts().head(15).index
     hm = df[df[C.I_CROP].isin(HEAT_CROPS) & df[C.I_STATE].isin(states)].pivot_table(
         index=C.I_STATE, columns=C.I_CROP, values=C.I_TARGET, aggfunc="median")
     with plt.rc_context(i18n.rc(lang)):
-        fig, ax = plt.subplots(figsize=(8, 5.8))
+        fig, ax = plt.subplots(figsize=figsize)
         sns.heatmap(hm, annot=True, fmt=".1f", cmap="YlGn", ax=ax, cbar_kws={"label": _t("ch_heat_cbar", lang)})
         ax.set(title=_t("ch_heat", lang), xlabel=_t("crop", lang), ylabel=_t("state", lang))
         fig.tight_layout()
@@ -72,11 +72,11 @@ def state_crop_heatmap(df: pd.DataFrame, lang: str):
     return fig
 
 
-def india_vs_world(cmp: pd.DataFrame, lang: str):
+def india_vs_world(cmp: pd.DataFrame, lang: str, figsize=(12, 5.2)):
     """India's yield vs the world average for the crops both datasets share."""
     crops = list(cmp.crop.unique())
     with plt.rc_context(i18n.rc(lang)):
-        fig, axes = plt.subplots(2, 4, figsize=(12, 5.2))
+        fig, axes = plt.subplots(2, 4, figsize=figsize)
         for ax, crop in zip(axes.ravel(), crops):
             g = cmp[cmp.crop == crop]
             ax.plot(g.year, g.india_t_ha, marker="o", ms=3, label=_t("ch_india", lang))
@@ -91,12 +91,12 @@ def india_vs_world(cmp: pd.DataFrame, lang: str):
     return fig
 
 
-def comparison_bars(comp: pd.DataFrame, title_key: str, lang: str):
+def comparison_bars(comp: pd.DataFrame, title_key: str, lang: str, figsize=(10, 4.6)):
     """Grouped bars of test R² for the random vs time-based split."""
     piv = comp.pivot(index="model", columns="split", values="test_R2")
     piv = piv.reindex(comp.model.drop_duplicates())          # keep the table's model order
     with plt.rc_context(i18n.rc(lang)):
-        fig, ax = plt.subplots(figsize=(10, 4.6))
+        fig, ax = plt.subplots(figsize=figsize)
         x = np.arange(len(piv))
         for i, split in enumerate(["random", "time"]):
             ax.bar(x + (i - 0.5) * 0.38, piv[split], 0.38, label=_t(f"split.{split}", lang))
