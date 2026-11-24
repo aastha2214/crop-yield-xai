@@ -70,3 +70,20 @@ def test_no_english_leaks_in_hindi_mode(app_hi):
 def test_language_switch_keeps_choices(app_hi):
     assert app_hi.radio(key="sc_mode__hi").value == "india"          # radio selection survives translation
     assert app_hi.select_slider(key="i_outlook__hi").value == "high"  # drought click survives too
+
+
+def test_recommender_area_default_follows_state_and_season(app_en):
+    """Default Area = median area of the selected state AND season, and it refreshes when they change."""
+    import pandas as pd
+    from src import india
+    df = india.clean(verbose=False)
+
+    def median(state, season):
+        return float(df[(df.State == state) & (df.Season == season)].Area.median())
+
+    at = app_en
+    assert at.number_input(key="rec_area_Punjab_Kharif").value == pytest.approx(median("Punjab", "Kharif"))
+    at.selectbox(key="rec_state").set_value("Maharashtra").run()
+    at.selectbox(key="rec_season").set_value("Rabi").run()
+    assert at.number_input(key="rec_area_Maharashtra_Rabi").value == pytest.approx(median("Maharashtra", "Rabi"))
+    assert any("Typical area for Maharashtra, Rabi" in c.value for c in at.caption)

@@ -45,7 +45,7 @@ brew install libomp
 ```bash
 python -m src.train          # global models: comparison, tuning, saves models/best_model.joblib (~6 min)
 python -m src.india          # India models: saves models/india_model.joblib (~5 min)
-python -m pytest -q          # 23 tests: expert system, scenarios/recommender, translations, end-to-end app (English + Hindi)
+python -m pytest -q          # 25 tests: expert system, scenarios/recommender, translations, end-to-end app (English + Hindi)
 streamlit run app.py         # interactive demo
 # execute notebooks (outputs are saved in the .ipynb files)
 cd notebooks && jupyter nbconvert --to notebook --execute --inplace 01_eda.ipynb 02_modeling.ipynb 03_xai.ipynb 04_india.ipynb
@@ -143,7 +143,9 @@ Beyond a single prediction, the app offers three decision-support tools. All of 
 | **Crop Recommender** (in *India Insights*) | Pick state, season, rainfall and area. Predicts yield for every crop grown in that state and season, shows the top 5 as a ranked bar chart (ranked by predicted t/ha, or by % above the crop's usual yield there), and explains the top crop with SHAP. |
 | **Language toggle** (English / हिन्दी) | Translates **all visible app text** into simple Hindi: tab names, headings, input labels, buttons, metric labels, notes, captions, table headers, the expert-system advice and reasoning trace, the SHAP sentence, and the titles/axes/legends of every chart. Crop, country and state names, numbers and units (mm/year, °C, t/ha, hg/ha, kg/ha) stay as in the data. All strings live in one dictionary, `src/i18n.py`. Charts use a Devanagari font (Kohinoor Devanagari, Noto Sans Devanagari or Devanagari Sangam MN, whichever is installed); if none is found the chart labels fall back to English instead of showing boxes. |
 
-Honest caveats (also shown in the app): the models learned patterns across many countries/states and years, so scenario curves can look counter-intuitive (e.g. for India wheat the global model predicts +17.0 % at −30 % rainfall and −13.2 % at +3 °C with unchanged rainfall); tree models change in steps; in the India data *Area* is the total area under a crop in a whole state, so single-farm sizes are out of range; yields in t/ha are not comparable across crops in value or effort, and the recommender ignores prices, soil, water and rotation.
+The scenario tab opens on **India · Cassava** because it is the only crop the global model has for India whose curves go the intuitive way at the extremes (30 % less rain: −1.78 %; +3 °C: −0.60 %; both: −2.41 %) – the effects are small, and for every other India crop the model predicts a *higher* yield with less rain, so this default is a presentation choice, not evidence. The recommender's default Area is the median for the selected state and season, with a caption showing the typical range (Punjab, Kharif: median 8,000 ha, middle half 3,000 to 148,750 ha).
+
+Honest caveats (also shown in the app): the models learned patterns across many countries/states and years, so scenario curves can look counter-intuitive (e.g. for India wheat, a non-default crop, the global model predicts +17.0 % at −30 % rainfall and −13.2 % at +3 °C with unchanged rainfall); tree models change in steps; in the India data *Area* is the total area under a crop in a whole state, so single-farm sizes are out of range; yields in t/ha are not comparable across crops in value or effort, and the recommender ignores prices, soil, water and rotation.
 
 | Climate Scenarios | Crop Recommender | Model Evaluation |
 |---|---|---|

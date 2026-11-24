@@ -282,8 +282,11 @@ with tab2:
     rkey = f"rec_rain_{rstate}_{rseason}"
     st.session_state.setdefault(rkey, float(rsub[C.I_RAIN].median()))
     rrain = r3.number_input(tr("rain_annual_mm"), 0.0, 7000.0, step=50.0, key=rkey)
-    rarea = r4.number_input(tr("area_crop"), 1.0, 5e7, float(rsub[C.I_AREA].median()), step=1000.0,
+    # default Area = median for this state AND season; the key changes with them, so the default refreshes
+    a_q1, a_med, a_q3 = (float(v) for v in rsub[C.I_AREA].quantile([0.25, 0.5, 0.75]))
+    rarea = r4.number_input(tr("area_crop"), 1.0, 5e7, a_med, step=1000.0,
                             key=f"rec_area_{rstate}_{rseason}", help=tr("area_help"))
+    st.caption(tr("rec_area_caption", state=rstate, season=rseason, med=f"{a_med:,.0f}", lo=f"{a_q1:,.0f}", hi=f"{a_q3:,.0f}"))
     rank_by = stable_radio(tr("rec_rank_by"), ["pred", "pct"], "rec_rank",
                            lambda v: tr("rec_rank_pred" if v == "pred" else "rec_rank_pct"))
     rec = scenarios.recommend(iex.fitted, idf, rstate, rseason, rrain, rarea, last_year)
@@ -318,7 +321,7 @@ with tab_sc:
     k1, k2, k3 = st.columns(3)
     if use_global:
         country = pick(tr("country"), gmeta["countries"], "sc_country", "India", k1)
-        crop_s = pick(tr("crop"), sorted(gdf[gdf[C.G_COUNTRY] == country][C.G_CROP].unique()), "sc_crop", "Wheat", k2)
+        crop_s = pick(tr("crop"), sorted(gdf[gdf[C.G_COUNTRY] == country][C.G_CROP].unique()), "sc_crop", "Cassava", k2)   # default chosen because its curves behave intuitively (see README)
         base = scenarios.global_baseline(gdf, country, crop_s, gmeta["year_range"][1])
         model, feats, rain_col, temp_col, unit = gex.fitted, C.G_FEATURES, C.G_RAIN, C.G_TEMP, "hg/ha"
         where = f"{crop_s} · {country}"

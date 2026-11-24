@@ -75,3 +75,13 @@ def test_every_ui_string_has_both_languages():
 def test_translation_formatting():
     assert "{" not in i18n.tr("rec_chart_title", "hi", state="Punjab", season="Kharif", n=11)
     assert i18n.tr("sc_rain_line", "hi", r=-30) == "वर्षा -30%"
+
+
+def test_default_scenario_crop_behaves_intuitively(gstuff):
+    """The app's default scenario (India, Cassava): less rain and +3 °C both lower the predicted yield."""
+    model, df, meta = gstuff
+    base = S.global_baseline(df, "India", "Cassava", meta["year_range"][1])
+    _, grid = S.climate_grid(model, base, C.G_FEATURES, C.G_RAIN, C.G_TEMP)
+    assert (grid.loc[-30] < 0).all()          # 30 % less rain: below today at every warming level
+    assert grid.loc[0, 3.0] < 0               # +3 °C at unchanged rain: below today
+    assert grid.loc[-30, 3.0] < grid.loc[0, 0.0]   # dry AND hot is worse than today

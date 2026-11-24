@@ -93,6 +93,9 @@ _add("rec_title", "🌱 Crop Recommender", "🌱 फसल सुझावक")
 _add("rec_caption",
      "Choose a state, season, rainfall and area. The model predicts the yield of every crop grown in that state and season and ranks the top 5. Fertilizer and pesticide per hectare are set to each crop's typical level there.",
      "राज्य, सीज़न, वर्षा और क्षेत्रफल चुनें। मॉडल उस राज्य और सीज़न में उगाई जाने वाली हर फसल की उपज का अनुमान लगाकर शीर्ष 5 फसलों को क्रम से दिखाता है। प्रति हेक्टेयर उर्वरक और कीटनाशक वहाँ उस फसल के सामान्य स्तर पर रखे गए हैं।")
+_add("rec_area_caption",
+     "Typical area for {state}, {season}: median {med} ha; the middle half of records lies between {lo} and {hi} ha (state-wide totals per crop, from the dataset).",
+     "{state}, {season} के लिए सामान्य क्षेत्रफल: माध्यिका {med} ha; आधे रिकॉर्ड {lo} से {hi} ha के बीच हैं (डेटासेट में हर फसल के राज्य-स्तरीय कुल)।")
 _add("rec_rank_by", "Rank crops by", "फसलों को इस आधार पर क्रम दें")
 _add("rec_rank_pred", "Predicted yield (t/ha)", "अनुमानित उपज (t/ha)")
 _add("rec_rank_pct", "Predicted yield vs. the crop's usual yield here (%)", "अनुमानित उपज, यहाँ उस फसल की सामान्य उपज की तुलना में (%)")
