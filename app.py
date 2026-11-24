@@ -2,14 +2,13 @@
 
 Run:  streamlit run app.py
 """
-import json
-
 import joblib
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import streamlit as st
 
-from src import advisor, config as C, data, india
+from src import advisor, config as C, data, i18n, india, scenarios
 from src.explain import Explainer
 
 st.set_page_config(page_title="Crop Yield XAI", page_icon="🌾", layout="wide")
@@ -46,39 +45,64 @@ def load_results():
     return (pd.read_csv(C.GLOBAL_COMPARISON_CSV), pd.read_csv(C.INDIA_COMPARISON_CSV))
 
 
-def show_advice(facts: dict):
-    """Run forward chaining and display advice + the reasoning trace."""
-    all_facts, advice, trace = advisor.forward_chain(facts)
-    st.subheader("Expert-system advice")
-    st.caption("Facts: " + ", ".join(f"{k} = {v}" for k, v in facts.items()))
+def pick(label, options, key, default=None, container=st):
+    """Selectbox whose options can change: resets an invalid stored choice instead of crashing."""
+    options = list(options)
+    if st.session_state.get(key) not in options:
+        st.session_state[key] = default if default in options else options[0]
+    return container.selectbox(label, options, key=key)
+
+
+def bar_chart(labels, values, xlabel, title, fmt="{:.2f}", highlight_first=True):
+    """Horizontal ranked bar chart (best at the top)."""
+    fig, ax = plt.subplots(figsize=(7, 0.55 * len(labels) + 1.2))
+    colors = ["#2a9d8f" if (i == 0 and highlight_first) else "#8ecae6" for i in range(len(labels))]
+    ax.barh(labels[::-1], values[::-1], color=colors[::-1])
+    for y, v in enumerate(values[::-1]):
+        ax.text(v, y, " " + fmt.format(v), va="center", fontsize=9)
+    ax.set(xlabel=xlabel, title=title)
+    ax.margins(x=0.15)
+    fig.tight_layout()
+    return fig
+
+
+def show_advice(facts: dict, lang: str = "en"):
+    """Run forward chaining and display advice (English or Hindi) + the reasoning trace."""
+    _, _, trace = advisor.forward_chain(facts)
+    advice = advisor.advice_from_trace(trace, lang)
+    st.subheader(i18n.ui("advice_title", lang))
+    st.caption(i18n.ui("facts", lang) + ": " + ", ".join(i18n.fact_text(k, v, lang) for k, v in facts.items()))
     if advice:
         for a in advice:
             st.success(a)
     else:
-        st.info("No rule fired: conditions look unremarkable, so no special advice.")
-    with st.expander("Reasoning trace (rules fired, in order)"):
+        st.info(i18n.ui("no_rule", lang))
+    with st.expander(i18n.ui("trace", lang)):
         if not trace:
-            st.write("No rules fired.")
+            st.write(i18n.ui("no_rule", lang))
+        IF, THEN, AND = (i18n.ui(k, lang) for k in ("if", "then", "and"))
         for i, t in enumerate(trace, 1):
-            cond = " AND ".join(f"{k} = {v}" for k, v in t["because"].items())
-            der = ", ".join(f"{k} = {v}" for k, v in t["derived"].items())
-            st.markdown(f"**{i}. {t['rule']}**: IF {cond} → THEN {der}  \n_{t['text']}_")
+            cond = f" {AND} ".join(i18n.fact_text(k, v, lang) for k, v in t["because"].items())
+            der = ", ".join(i18n.fact_text(k, v, lang) for k, v in t["derived"].items())
+            txt = t["text_hi"] if lang == "hi" else t["text"]
+            st.markdown(f"**{i}. {t['rule']}**: {IF} {cond} → {THEN} {der}  \n_{txt}_")
 
 
-def show_explanation(ex: Explainer, row: pd.DataFrame, unit: str, title: str):
-    """Waterfall plot and the plain-English sentence."""
-    st.subheader("Why this prediction? (SHAP)")
+def show_explanation(ex: Explainer, row: pd.DataFrame, unit: str, title: str, lang: str = "en"):
+    """Waterfall plot, the E[f(X)] note and the plain-language sentence (English or Hindi)."""
+    st.subheader(i18n.ui("why", lang))
     fig = ex.waterfall(row, title=title)
     st.pyplot(fig, clear_figure=True)
     plt.close("all")
-    st.caption("The starting value E[f(X)] is the average prediction across all crops, so a crop with naturally lower yield per hectare shows a negative contribution.")
-    st.info(ex.sentence(row, unit=unit))
-    st.caption("SHAP shows what the model associates with the prediction, not proven causes.")
+    st.caption(i18n.ui("waterfall_note", lang))
+    st.info(ex.sentence(row, unit=unit, lang=lang))
+    st.caption(i18n.ui("shap_caption", lang))
 
 
 st.title("🌾 Crop Yield Prediction with Explainable AI")
-st.caption("Aastha Kumari · Thapar Institute of Engineering and Technology")
-tab1, tab2, tab3 = st.tabs(["Predict & Explain", "India Insights", "Model Evaluation"])
+st.caption("Predict · Explain · Advise: an explainable AI system for smarter farming")
+lang = i18n.LANGS[st.radio("Language / भाषा", list(i18n.LANGS), horizontal=True, key="lang")]
+tab1, tab2, tab_sc, tab3 = st.tabs(["Predict & Explain", "India Insights", "Climate Scenarios", "Model Evaluation"])
 
 # =================================================================== TAB 1
 with tab1:
@@ -118,13 +142,13 @@ with tab1:
     k2.metric("= tonnes per hectare", f"{pred * C.HG_PER_HA_TO_T_PER_HA:.2f} t/ha")
     k3.metric(f"Historical average ({basis})", f"{hist_avg:,.0f} hg/ha", f"{(pred / hist_avg - 1) * 100:+.1f}%")
 
-    show_explanation(ex, row, "hg/ha", f"{crop} in {country}, {year}")
+    show_explanation(ex, row, "hg/ha", f"{crop} in {country}, {year}", lang)
 
     q = gmeta["quantiles"]
     facts = advisor.build_facts({"rainfall": q[C.G_RAIN], "temp": q[C.G_TEMP], "pesticides": q[C.G_PEST]},
                                 rainfall=rain, temp=temp, pesticides=pest,
                                 predicted=pred, crop_avg=hist_avg, crop=crop)
-    show_advice(facts)
+    show_advice(facts, lang)
 
 # =================================================================== TAB 2
 with tab2:
@@ -160,7 +184,7 @@ with tab2:
         st.session_state["i_outlook"] = "high"
 
     e1, e2, e3, e4 = st.columns(4)
-    area = e1.number_input("Area (ha)", 1.0, 5e7, float(ref[C.I_AREA].median()), step=1000.0)
+    area = e1.number_input("Area under crop (ha)", 1.0, 5e7, float(ref[C.I_AREA].median()), step=1000.0, help="In the dataset, Area is the total area under that crop in the whole state (not a single farm), so very small values are outside what the model has seen.")
     irain = e2.number_input("Annual rainfall (mm)", 0.0, 7000.0, step=50.0, key=rain_key)
     fert = e3.number_input("Fertilizer (kg/ha)", 0.0, 5000.0, float(ref[C.I_FERT_HA].median()), step=5.0, format="%.2f")
     ipest = e4.number_input("Pesticide (kg/ha)", 0.0, 100.0, float(ref[C.I_PEST_HA].median()), step=0.05, format="%.3f")
@@ -177,11 +201,115 @@ with tab2:
     m1.metric("Predicted yield", f"{ipred:.2f} t/ha")
     m2.metric(f"Historical average ({'state · crop' if len(sub) else 'crop, all states'})", f"{iavg:.2f} t/ha",
               f"{(ipred / iavg - 1) * 100:+.1f}%")
-    show_explanation(iex, irow, "t/ha", f"{icrop}, {state}, {season}, {iyear}")
+    show_explanation(iex, irow, "t/ha", f"{icrop}, {state}, {season}, {iyear}", lang)
     ifacts = advisor.build_facts(rule_q, rainfall=irain, pesticides=ipest, fertilizer=fert,
                                  predicted=ipred, crop_avg=iavg, crop=icrop, season=season)
     ifacts["temp"] = outlook
-    show_advice(ifacts)
+    show_advice(ifacts, lang)
+
+    # ------------------------------------------------------------ Crop Recommender
+    st.divider()
+    st.subheader("🌱 Crop Recommender")
+    st.caption("Choose a state, season, rainfall and area. The model predicts the yield of every crop grown in that "
+               "state and season and ranks the top 5. Fertilizer and pesticide per hectare are set to each crop's "
+               "typical level there.")
+    last_year = scenarios.last_full_year(idf)
+    r1, r2, r3, r4 = st.columns(4)
+    rstate = pick("State", imeta["states"], "rec_state", "Punjab", r1)
+    rseason = pick("Season", sorted(idf[idf[C.I_STATE] == rstate][C.I_SEASON].unique()), "rec_season", "Kharif", r2)
+    rsub = idf[(idf[C.I_STATE] == rstate) & (idf[C.I_SEASON] == rseason)]
+    rkey = f"rec_rain_{rstate}_{rseason}"
+    st.session_state.setdefault(rkey, float(rsub[C.I_RAIN].median()))
+    rrain = r3.number_input("Annual rainfall (mm)", 0.0, 7000.0, step=50.0, key=rkey)
+    rarea = r4.number_input("Area under crop (ha)", 1.0, 5e7, float(rsub[C.I_AREA].median()), step=1000.0, key=f"rec_area_{rstate}_{rseason}", help="In the dataset, Area is the total area under that crop in the whole state (not a single farm), so very small values are outside what the model has seen.")
+    rank_by = st.radio("Rank crops by", ["Predicted yield (t/ha)", "Predicted yield vs. the crop's usual yield here (%)"],
+                       horizontal=True, key="rec_rank")
+    rec = scenarios.recommend(iex.fitted, idf, rstate, rseason, rrain, rarea, last_year)
+    if rec.empty:
+        st.info("Not enough historical records for this state and season.")
+    else:
+        by_pct = rank_by.startswith("Predicted yield vs")
+        ranked = rec.sort_values("vs_usual_pct" if by_pct else "predicted", ascending=False).reset_index(drop=True)
+        top5 = ranked.head(5)
+        vals = top5.vs_usual_pct if by_pct else top5.predicted
+        fig = bar_chart(list(top5.crop), list(vals), "% above/below the usual yield" if by_pct else "predicted yield (t/ha)",
+                        f"Top 5 crops: {rstate}, {rseason} ({len(rec)} crops considered)",
+                        fmt="{:+.1f}%" if by_pct else "{:.2f}")
+        st.pyplot(fig, clear_figure=True); plt.close("all")
+        st.dataframe(top5[["crop", "predicted", "hist_avg", "vs_usual_pct", "n_rows"]].rename(columns={
+            "crop": "Crop", "predicted": "Predicted (t/ha)", "hist_avg": "Usual yield here (t/ha)",
+            "vs_usual_pct": "Vs usual (%)", "n_rows": "Past records"}).style.format(
+            {"Predicted (t/ha)": "{:.3f}", "Usual yield here (t/ha)": "{:.3f}", "Vs usual (%)": "{:+.1f}"}), hide_index=True)
+        st.warning("Yields in t/ha are not comparable across crops in value or effort (e.g. sugarcane vs pulses), and this ranking "
+                   "ignores prices, soil, water availability, labour and crop rotation. It shows what the model predicts, "
+                   "not what you should plant.")
+        best = top5.iloc[0]
+        st.markdown(f"**SHAP explanation for the top crop: {best.crop}**")
+        show_explanation(iex, pd.DataFrame([best.row])[C.I_FEATURES], "t/ha", f"{best.crop}, {rstate}, {rseason}", lang)
+
+
+# =================================================================== CLIMATE SCENARIOS
+with tab_sc:
+    st.header("Climate Scenarios")
+    st.warning("This shows what the model associates with climate in historical data, not a guaranteed forecast. "
+               "Real outcomes also depend on irrigation, crop varieties, adaptation, pests and extreme events that the "
+               "model cannot see (its climate inputs are annual averages).")
+    gex, gdf, gmeta = load_global()
+    iex, idf, imeta, _ = load_india()
+    mode = st.radio("Model", ["Global model (country)", "India model (state)"], horizontal=True, key="sc_mode")
+    use_global = mode.startswith("Global")
+    k1, k2, k3 = st.columns(3)
+    if use_global:
+        country = pick("Country", gmeta["countries"], "sc_country", "India", k1)
+        crop_s = pick("Crop", sorted(gdf[gdf[C.G_COUNTRY] == country][C.G_CROP].unique()), "sc_crop", "Wheat", k2)
+        base = scenarios.global_baseline(gdf, country, crop_s, gmeta["year_range"][1])
+        model, feats, rain_col, temp_col, unit, scale = gex.fitted, C.G_FEATURES, C.G_RAIN, C.G_TEMP, "hg/ha", 1.0
+        where = f"{crop_s} in {country}"
+    else:
+        st_s = pick("State", imeta["states"], "sc_state", "Punjab", k1)
+        crop_s = pick("Crop", sorted(idf[idf[C.I_STATE] == st_s][C.I_CROP].unique()), "sc_icrop", "Rice", k2)
+        season_s = pick("Season", sorted(idf[(idf[C.I_STATE] == st_s) & (idf[C.I_CROP] == crop_s)][C.I_SEASON].unique()),
+                        "sc_iseason", "Kharif", k3)
+        base = scenarios.india_baseline(idf, st_s, crop_s, season_s, scenarios.last_full_year(idf))
+        model, feats, rain_col, temp_col, unit, scale = iex.fitted, C.I_FEATURES, C.I_RAIN, None, "t/ha", 1.0
+        where = f"{crop_s} in {st_s} ({season_s})"
+    s1, s2 = st.columns(2)
+    d_temp = s1.slider("Temperature change (°C)", 0.0, 3.0, 1.0, 0.5, key="sc_dt", disabled=temp_col is None)
+    d_rain = s2.slider("Rainfall change (%)", -30, 30, -10, 5, key="sc_dr")
+    if temp_col is None:
+        st.info("The India dataset has no temperature variable, so the India model can only respond to rainfall. "
+                "For temperature scenarios choose the global model with country = India.")
+    base_pred, grid = scenarios.climate_grid(model, base, feats, rain_col, temp_col)
+    scen_row = scenarios.apply_change(base, rain_col, temp_col, d_temp if temp_col else 0.0, d_rain)
+    scen_pred = float(model.predict(pd.DataFrame([scen_row])[feats])[0])
+    chg = (scen_pred / base_pred - 1) * 100
+    fmt = "{:,.0f}" if use_global else "{:.2f}"
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Today (model, recent climate)", f"{fmt.format(base_pred)} {unit}")
+    m2.metric("Scenario", f"{fmt.format(scen_pred)} {unit}")
+    m3.metric("Change vs today", f"{chg:+.1f}%")
+    fig, ax = plt.subplots(figsize=(8, 4.2))
+    if use_global:
+        cols = plt.cm.RdYlBu(np.linspace(0.05, 0.95, len(grid.index)))
+        for (r, row_), c in zip(grid.iterrows(), cols):
+            ax.plot(row_.index, row_.values, marker="o", ms=4, color=c, label=f"rainfall {r:+d}%")
+        ax.scatter([d_temp], [chg], marker="*", s=260, color="black", zorder=5, label="your scenario")
+        ax.set_xlabel("Temperature change (°C)"); ax.legend(fontsize=8, ncol=2)
+    else:
+        vals = grid[0.0]
+        ax.bar(vals.index, vals.values, width=10, color=["#c1121f" if v < 0 else "#2a9d8f" for v in vals.values])
+        ax.scatter([d_rain], [chg], marker="*", s=260, color="black", zorder=5, label="your scenario"); ax.legend()
+        ax.set_xlabel("Rainfall change (%)")
+    ax.axhline(0, color="grey", lw=0.8)
+    ax.set(ylabel="Predicted yield change vs today (%)", title=f"{where}: predicted yield change across scenarios")
+    fig.tight_layout(); st.pyplot(fig, clear_figure=True); plt.close("all")
+    with st.expander("Full scenario table (% change vs today)"):
+        tbl = grid.copy(); tbl.index = [f"rainfall {r:+d}%" for r in tbl.index]; tbl.columns = [f"+{t:g}°C" for t in tbl.columns]
+        st.dataframe(tbl.style.format("{:+.1f}%"))
+    st.caption("Tree-based models change in steps, so the curves can be flat or non-monotonic; treat small differences "
+               "as noise. Results can look counter-intuitive (for example less rain giving a higher yield) because the model learned "
+               "patterns across many countries/states and years, not the physiology of one crop. 'Today' = the model's prediction "
+               "using this location's last observed years of climate.")
 
 # =================================================================== TAB 3
 with tab3:

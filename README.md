@@ -45,7 +45,7 @@ brew install libomp
 ```bash
 python -m src.train          # global models: comparison, tuning, saves models/best_model.joblib (~6 min)
 python -m src.india          # India models: saves models/india_model.joblib (~5 min)
-python -m pytest -q          # expert-system unit tests
+python -m pytest -q          # 16 tests: expert system, scenarios/recommender, Hindi translations
 streamlit run app.py         # interactive demo
 # execute notebooks (outputs are saved in the .ipynb files)
 cd notebooks && jupyter nbconvert --to notebook --execute --inplace 01_eda.ipynb 02_modeling.ipynb 03_xai.ipynb 04_india.ipynb
@@ -64,10 +64,12 @@ src/evaluate.py       metrics, forward-chaining CV, diagnostic plots
 src/explain.py        SHAP explainer (one-hot -> readable), sentences
 src/explain_global.py all global XAI figures
 src/india.py          India cleaning, modelling, SHAP, India-vs-world
-src/advisor.py        rule-based expert system
+src/advisor.py        rule-based expert system (English + Hindi rule texts)
+src/i18n.py           English / Hindi translation tables
+src/scenarios.py      climate what-if scenarios + crop recommender logic
 notebooks/            01_eda, 02_modeling, 03_xai, 04_india (executed)
 app.py                Streamlit app (3 tabs)
-tests/test_advisor.py pytest
+tests/                pytest (test_advisor.py, test_scenarios.py)
 models/               best_model.joblib, india_model.joblib (+ metadata)
 outputs/figures|results   all plots and CSV tables
 REPORT.md             draft academic report
@@ -130,16 +132,33 @@ Best India model: **tuned XGBoost** (time-split R² 0.920, MAE 1.090 t/ha, RMSE 
 
 **App.** Each prediction tab has a "Try example: drought scenario" button (low rainfall, high temperature) so the expert-system rules fire; each SHAP waterfall has a note explaining that the starting value E[f(X)] is the average across all crops.
 
+## Decision support features (in the Streamlit app)
+
+Beyond a single prediction, the app offers three decision-support tools. All of them query the trained models, so they show what the model **associates** with the inputs, not guaranteed forecasts.
+
+| Feature | What it does |
+|---|---|
+| **Climate Scenarios** tab | Pick a crop and country (global model) or state (India model). Sliders for temperature change (0 to +3 °C) and rainfall change (−30 % to +30 %). Shows the predicted yield change vs "today" (the model's prediction using the location's last observed years of climate) as a chart across all scenarios, plus the full table. The India dataset has no temperature column, so the India model responds to rainfall only. |
+| **Crop Recommender** (in *India Insights*) | Pick state, season, rainfall and area. Predicts yield for every crop grown in that state and season, shows the top 5 as a ranked bar chart (ranked by predicted t/ha, or by % above the crop's usual yield there), and explains the top crop with SHAP. |
+| **Language toggle** (English / हिन्दी) | Switches the expert-system advice (all 16 rule texts translated to simple Hindi), the reasoning trace, the facts line and the SHAP explanation sentence. |
+
+Honest caveats (also shown in the app): the models learned patterns across many countries/states and years, so scenario curves can look counter-intuitive (e.g. for India wheat the global model predicts +17.0 % at −30 % rainfall and −13.2 % at +3 °C with unchanged rainfall); tree models change in steps; in the India data *Area* is the total area under a crop in a whole state, so single-farm sizes are out of range; yields in t/ha are not comparable across crops in value or effort, and the recommender ignores prices, soil, water and rotation.
+
+| Climate Scenarios | Crop Recommender | Hindi mode |
+|---|---|---|
+| ![](outputs/figures/app_tab3_climate_scenarios.png) | ![](outputs/figures/app_tab2_recommender.png) | ![](outputs/figures/app_tab1_hindi.png) |
+
 ### Key plots
 | | |
 |---|---|
 | ![](outputs/figures/model_comparison.png) | ![](outputs/figures/shap_beeswarm.png) |
 | ![](outputs/figures/shap_waterfall_low.png) | ![](outputs/figures/india_shap_waterfall_rice_punjab.png) |
-| ![](outputs/figures/app_tab1_drought_scenario.png) | ![](outputs/figures/app_tab2_india_drought.png) |
-| ![](outputs/figures/app_tab3_evaluation.png) | ![](outputs/figures/india_vs_world.png) |
+| ![](outputs/figures/app_tab1_drought_scenario.png) | ![](outputs/figures/app_tab2_india.png) |
+| ![](outputs/figures/app_tab4_evaluation.png) | ![](outputs/figures/india_vs_world.png) |
 
 ## Notes and honest limitations
 * Models learn **associations**, not causes; SHAP explains the model, not the farm.
 * Rainfall/temperature are annual country-level (global) or state-level (India) values.
 * The saved models are trained on the training part of the time split (so reported metrics describe exactly the saved model).
+* Scenario and recommender outputs are model associations, not agronomic advice (see *Decision support features*).
 * The expert-system rules are illustrative agronomy heuristics, not certified advice; consult local extension services.

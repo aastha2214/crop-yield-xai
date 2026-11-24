@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import shap
 
-from . import features
+from . import features, i18n
 
 
 class Explainer:
@@ -161,24 +161,39 @@ class Explainer:
         """Format a yield amount: whole numbers when large, 2 decimals when small."""
         return f"{v:,.0f}" if abs(v) >= 100 else f"{v:,.2f}"
 
-    def sentence(self, x_row: pd.DataFrame, top_k=3, unit="hg/ha") -> str:
-        """Turn the top-k SHAP contributions into a plain-English sentence."""
+    def sentence(self, x_row: pd.DataFrame, top_k=3, unit="hg/ha", lang="en") -> str:
+        """Turn the top-k SHAP contributions into a plain-English (or Hindi, lang='hi') sentence."""
         g = self.shap_grouped(x_row).iloc[0]
         row = x_row.iloc[0]
         pred = float(self.fitted.predict(x_row)[0])
+        hi = lang == "hi"
         parts = []
         for col in g.abs().sort_values(ascending=False).index[:top_k]:
-            amt = abs(g[col])
-            verb = "increased" if g[col] > 0 else "reduced"
+            amt = self._num(abs(g[col]))
+            up = g[col] > 0
             lvl = self.level(col, row[col]) if col in self.num else ""
-            name = self.labels[col].lower()
+            name = self.labels[col]
+            if hi:
+                name_hi = i18n.LABELS_HI.get(name, name)
+                if col in self.cat:
+                    subj = f"{name_hi} '{row[col]}'"
+                elif lvl:
+                    subj = f"{i18n.LEVELS_HI[lvl]} {name_hi} ({self._display(row, col)})"
+                else:
+                    subj = f"{name_hi} ({self._display(row, col)})"
+                parts.append(f"{subj} ने अनुमानित उपज को {amt} {unit} {'बढ़ाया' if up else 'घटाया'}")
+                continue
+            verb = "increased" if up else "reduced"
             if col in self.cat:
-                subj = f"{self.labels[col]} '{row[col]}'"
+                subj = f"{name} '{row[col]}'"
             elif lvl:
-                subj = f"{lvl.capitalize()} {name} ({self._display(row, col)})"
+                subj = f"{lvl.capitalize()} {name.lower()} ({self._display(row, col)})"
             else:
-                subj = f"{self.labels[col]} ({self._display(row, col)})"
-            parts.append(f"{subj} {verb} the predicted yield by {self._num(amt)} {unit}")
+                subj = f"{name} ({self._display(row, col)})"
+            parts.append(f"{subj} {verb} the predicted yield by {amt} {unit}")
+        if hi:
+            return (f"मॉडल का अनुमान {self._num(pred)} {unit} है (औसत अनुमान: {self._num(self.base_value)})। "
+                    + "; ".join(parts) + "।")
         return (f"The model predicts {self._num(pred)} {unit} (average prediction: {self._num(self.base_value)}). "
                 + "; ".join(parts) + ".")
 
