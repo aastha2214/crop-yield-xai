@@ -35,7 +35,7 @@ If you ever need to re-download them, put the two CSVs in `data/` with exactly t
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # app + notebooks + tests (requirements.txt is the app only)
 # macOS only: XGBoost needs the OpenMP runtime
 brew install libomp
 ```
@@ -75,6 +75,9 @@ tests/                pytest (test_advisor.py, test_scenarios.py, test_app.py)
 models/               best_model.joblib, india_model.joblib (+ metadata)
 outputs/figures|results   all plots and CSV tables
 REPORT.md             draft academic report
+requirements.txt      app runtime dependencies (used by Streamlit Community Cloud)
+requirements-dev.txt  + Jupyter / nbconvert / pytest for notebooks and tests
+packages.txt          apt packages for Streamlit Cloud (Noto Devanagari font for Hindi charts)
 ```
 
 ## Results summary (all numbers produced by the code, 3 decimals)
